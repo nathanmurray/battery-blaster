@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery Blaster - Energy Transition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #0a0a12 0%, #1a1a2e 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        #gameWrapper {
+            display: flex;
+            gap: 0;
+        }
+        #gameContainer {
+            position: relative;
+            border: 4px solid #00ff88;
+            border-right: 2px solid #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.5), inset 0 0 30px rgba(0, 255, 136, 0.1);
+        }
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            cursor: crosshair;
+        }
+        #sidePanel {
+            width: 200px;
+            background: #0d0d1a;
+            border: 4px solid #00ff88;
+            border-left: 2px solid #00ff88;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+        .panel-section {
+            margin-bottom: 20px;
+        }
+        .panel-title {
+            color: #00ff88;
+            font-size: 11px;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #00ff8844;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+        .stat-label {
+            color: #88ffcc;
+        }
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ff88;
+        }
+        .charge-bar-container {
+            width: 100%;
+            height: 20px;
+            background: #1a1a2e;
+            border: 2px solid #00ff8844;
+            margin-top: 5px;
+        }
+        .charge-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #88ffcc);
+            transition: width 0.1s;
+            box-shadow: 0 0 10px #00ff88;
+        }
+        .energy-stat {
+            background: #0a0a12;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid #00ff88;
+        }
+        .energy-stat .stat-value {
+            font-size: 16px;
+            display: block;
+            margin-top: 2px;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff88;
+            text-align: center;
+            z-index: 10;
+        }
+        #startScreen h1, #gameOverScreen h1 {
+            font-size: 32px;
+            margin-bottom: 5px;
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        #startScreen h2 {
+            font-size: 12px;
+            color: #88ffcc;
+            letter-spacing: 4px;
+            margin-bottom: 30px;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: #ffaa00;
+            margin-bottom: 25px;
+        }
+        .controls {
+            font-size: 11px;
+            color: #aaaaaa;
+            margin: 15px 0;
+            line-height: 2;
+            background: #0a0a1266;
+            padding: 15px 25px;
+            border: 1px solid #00ff8833;
+        }
+        .controls strong {
+            color: #00ff88;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .start-btn {
+            margin-top: 25px;
+            padding: 15px 50px;
+            font-size: 16px;
+            font-family: 'Courier New', monospace;
+            background: transparent;
+            border: 3px solid #00ff88;
+            color: #00ff88;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .start-btn:hover {
+            background: #00ff88;
+            color: #000;
+            box-shadow: 0 0 30px #00ff88;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        .final-stats {
+            margin: 20px 0;
+            font-size: 13px;
+            line-height: 2.2;
+            text-align: left;
+            background: #0a0a1266;
+            padding: 15px 25px;
+            border: 1px solid #00ff8833;
+        }
+        .final-stats div {
+            display: flex;
+            justify-content: space-between;
+            gap: 30px;
+        }
+        .final-stats span {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+        #gameOverScreen {
+            display: none;
+        }
+        .aim-indicator {
+            color: #666;
+            font-size: 10px;
+            margin-top: 10px;
+        }
+        .wave-banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameWrapper">
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="700" height="600"></canvas>
+
+            <div id="startScreen">
+                <h1>BATTERY BLASTER</h1>
+                <h2>THE ENERGY TRANSITION</h2>
+                <p class="subtitle">Defend the grid with clean energy!</p>
+                <div class="controls">
+                    <strong>CONTROLS</strong>
+                    WASD / ARROWS - Move Battery<br>
+                    AIM WITH MOUSE - Point to target<br>
+                    CLICK / SPACE - Fire Electric Charge<br>
+                    P - Pause Game
+                </div>
+                <p style="font-size: 10px; color: #666; max-width: 350px; margin-top: 15px; line-height: 1.6;">
+                    Battery energy storage is revolutionizing the grid by replacing<br>
+                    polluting gas peaker plants with clean, instant power.
+                </p>
+                <button class="start-btn" onclick="startGame()">START MISSION</button>
+            </div>
+
+            <div id="gameOverScreen">
+                <h1>GRID OVERLOADED</h1>
+                <p class="subtitle">The turbines overwhelmed the battery!</p>
+                <div class="final-stats">
+                    <div><span class="stat-label">Final Score</span><span id="finalScore">0</span></div>
+                    <div><span class="stat-label">Waves Completed</span><span id="finalWaves">0</span></div>
+                    <div><span class="stat-label">MW Dispatched</span><span id="finalMW">0</span></div>
+                    <div><span class="stat-label">CO2 Avoided</span><span id="finalCO2">0</span> kg</div>
+                    <div><span class="stat-label">Turbines Retired</span><span id="finalTurbines">0</span></div>
+                </div>
+                <p style="font-size: 11px; color: #88ffcc; max-width: 300px;">
+                    Every battery deployed helps accelerate<br>the transition to clean energy.
+                </p>
+                <button class="start-btn" onclick="startGame()">TRY AGAIN</button>
+            </div>
+        </div>
+
+        <div id="sidePanel">
+            <div class="panel-section">
+                <div class="panel-title">STATUS</div>
+                <div class="stat-row">
+                    <span class="stat-label">SCORE</span>
+                    <span class="stat-value" id="scoreDisplay">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">WAVE</span>
+                    <span class="stat-value" id="waveDisplay">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">ENEMIES</span>
+                    <span class="stat-value" id="enemyCount">0 / 5</span>
+                </div>
+                <div style="margin-top: 10px;">
+                    <span class="stat-label" style="font-size: 10px;">BATTERY CHARGE</span>
+                    <div class="charge-bar-container">
+                        <div class="charge-bar" id="chargeBar" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">ENERGY IMPACT</div>
+                <div class="energy-stat">
+                    <span class="stat-label">MW DISPATCHED</span>
+                    <span class="stat-value" id="mwDisplay">0</span>
+                </div>
+                <div class="energy-stat">
+                    <span class="stat-label">CO2 AVOIDED</span>
+                    <span class="stat-value" id="co2Display">0 kg</span>
+                </div>
+                <div class="energy-stat">
+                    <span class="stat-label">TURBINES RETIRED</span>
+                    <span class="stat-value" id="turbinesDisplay">0</span>
+                </div>
+                <div class="energy-stat">
+                    <span class="stat-label">HOMES POWERED</span>
+                    <span class="stat-value" id="homesDisplay">0</span>
+                </div>
+            </div>
+
+            <div class="panel-section" style="margin-top: auto; font-size: 9px; color: #555; line-height: 1.5;">
+                <div class="panel-title" style="color: #444;">DID YOU KNOW?</div>
+                <p id="factDisplay">A single utility-scale battery can replace a 50MW gas peaker plant.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game State
+        let gameRunning = false;
+        let gamePaused = false;
+        let score = 0;
+        let wave = 1;
+        let batteryCharge = 100;
+
+        // Energy Metrics
+        let mwGenerated = 0;
+        let co2Avoided = 0;
+        let homesPowered = 0;
+        let turbinesRetired = 0;
+
+        // Mouse position for aiming
+        let mouseX = canvas.width / 2;
+        let mouseY = 0;
+
+        // Player
+        const player = {
+            x: 350,
+            y: 300,
+            width: 48,
+            height: 64,
+            speed: 4.5,
+            dx: 0,
+            dy: 0,
+            angle: -Math.PI / 2,
+            chargeRate: 0.4,
+            maxCharge: 100
+        };
+
+        // Projectiles
+        let projectiles = [];
+        const projectileSpeed = 12;
+        const projectileCost = 8;
+        let canShoot = true;
+        let shootCooldown = 150; // ms
+        let lastShotTime = 0;
+
+        // Enemies
+        let enemies = [];
+        let enemySpawnTimer = 0;
+        let enemySpawnRate = 90;
+        let enemiesPerWave = 5;
+        let enemiesSpawnedThisWave = 0;
+        let enemiesDefeatedThisWave = 0;
+        let waveComplete = false;
+        let waveTransitionTimer = 0;
+
+        // Particles
+        let particles = [];
+
+        // Input
+        const keys = {};
+
+        // Energy facts
+        const energyFacts = [
+            "A single utility-scale battery can replace a 50MW gas peaker plant.",
+            "Battery storage can respond to grid demands in milliseconds vs minutes for gas.",
+            "The average gas turbine emits 400kg of CO2 per MWh generated.",
+            "Battery costs have fallen 90% since 2010.",
+            "California's grid is now 30% powered by batteries during peak hours.",
+            "One 100MW battery can power 25,000 homes for 4 hours.",
+            "Gas peaker plants often run less than 10% of the year.",
+            "Batteries provide grid stability by balancing supply and demand instantly."
+        ];
+        let currentFact = 0;
+
+        // Drawing functions
+        function drawPixelRect(x, y, w, h, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+        }
+
+        function drawBattery(x, y, charge, angle) {
+            ctx.save();
+            ctx.translate(x + 24, y + 32);
+
+            // Draw aim direction indicator
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(angle) * 60, Math.sin(angle) * 60);
+            ctx.stroke();
+
+            // Aiming reticle
+            const reticleX = Math.cos(angle) * 55;
+            const reticleY = Math.sin(angle) * 55;
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
+            ctx.beginPath();
+            ctx.arc(reticleX, reticleY, 8, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(reticleX - 12, reticleY);
+            ctx.lineTo(reticleX + 12, reticleY);
+            ctx.moveTo(reticleX, reticleY - 12);
+            ctx.lineTo(reticleX, reticleY + 12);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Battery body
+            drawPixelRect(x, y + 8, 48, 56, '#1a1a2e');
+            drawPixelRect(x + 2, y + 10, 44, 52, '#16213e');
+
+            // Terminal
+            drawPixelRect(x + 16, y, 16, 10, '#4a4a6a');
+            drawPixelRect(x + 18, y + 2, 12, 6, '#6a6a8a');
+
+            // Charge level
+            const chargeHeight = Math.floor((charge / 100) * 44);
+            const chargeColor = charge > 60 ? '#00ff88' : charge > 30 ? '#ffaa00' : '#ff4444';
+            drawPixelRect(x + 6, y + 14 + (44 - chargeHeight), 36, chargeHeight, chargeColor);
+
+            // Segments
+            for (let i = 0; i < 4; i++) {
+                drawPixelRect(x + 4, y + 14 + i * 11, 40, 2, '#0a0a0a');
+            }
+
+            // Lightning bolt
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(x + 28, y + 20);
+            ctx.lineTo(x + 20, y + 36);
+            ctx.lineTo(x + 24, y + 36);
+            ctx.lineTo(x + 20, y + 52);
+            ctx.lineTo(x + 32, y + 32);
+            ctx.lineTo(x + 26, y + 32);
+            ctx.closePath();
+            ctx.fill();
+
+            // Glow
+            ctx.shadowColor = chargeColor;
+            ctx.shadowBlur = 20;
+            drawPixelRect(x + 6, y + 14 + (44 - chargeHeight), 36, chargeHeight, chargeColor);
+            ctx.shadowBlur = 0;
+
+            // Shield effect when low charge
+            if (charge < 20) {
+                ctx.strokeStyle = `rgba(255, 68, 68, ${0.3 + Math.sin(Date.now() / 100) * 0.2})`;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x - 4, y - 4, 56, 72);
+            }
+        }
+
+        function drawGasTurbine(x, y, health, maxHealth) {
+            const damageRatio = health / maxHealth;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(x + 24, y + 62, 20, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Base
+            drawPixelRect(x + 12, y + 48, 24, 8, '#4a3a2a');
+            drawPixelRect(x + 8, y + 54, 32, 6, '#5a4a3a');
+
+            // Body - show damage
+            const bodyColor = damageRatio > 0.5 ? '#6a6a7a' : '#5a4a4a';
+            drawPixelRect(x + 8, y + 16, 32, 34, bodyColor);
+            drawPixelRect(x + 10, y + 18, 28, 30, damageRatio > 0.5 ? '#8a8a9a' : '#7a6a6a');
+
+            // Damage sparks
+            if (damageRatio < 0.5) {
+                if (Math.random() > 0.7) {
+                    ctx.fillStyle = '#ffaa44';
+                    ctx.fillRect(x + 10 + Math.random() * 28, y + 18 + Math.random() * 30, 3, 3);
+                }
+            }
+
+            // Stack
+            drawPixelRect(x + 18, y, 12, 18, '#5a5a6a');
+            drawPixelRect(x + 20, y + 2, 8, 14, '#7a7a8a');
+
+            // Smoke
+            const smokeIntensity = damageRatio;
+            const time = Date.now() / 200;
+            ctx.globalAlpha = 0.4 + smokeIntensity * 0.3;
+            for (let i = 0; i < 3; i++) {
+                const offset = Math.sin(time + i) * 3;
+                const yOff = -8 - i * 8;
+                const size = 6 + i * 2;
+                ctx.fillStyle = `rgb(${100 + i * 30}, ${100 + i * 30}, ${100 + i * 30})`;
+                drawPixelRect(x + 20 + offset, y + yOff, size, size, ctx.fillStyle);
+            }
+            ctx.globalAlpha = 1;
+
+            // Spinning blades
+            ctx.save();
+            ctx.translate(x + 24, y + 32);
+            const rotation = Date.now() / (100 + (1 - damageRatio) * 200);
+            ctx.rotate(rotation);
+            for (let i = 0; i < 3; i++) {
+                ctx.rotate(Math.PI * 2 / 3);
+                drawPixelRect(-2, -12, 4, 12, '#3a3a4a');
+            }
+            ctx.restore();
+
+            // Health bar
+            const barWidth = 40;
+            drawPixelRect(x + 4, y - 8, barWidth, 6, '#222');
+            drawPixelRect(x + 5, y - 7, (barWidth - 2) * damageRatio, 4,
+                damageRatio > 0.6 ? '#ff6644' : damageRatio > 0.3 ? '#ff4422' : '#ff2222');
+
+            // CO2 emission indicator
+            ctx.fillStyle = '#ff6644';
+            ctx.font = 'bold 9px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('CO2', x + 24, y - 12);
+            ctx.textAlign = 'left';
+        }
+
+        function drawProjectile(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle + Math.PI / 2);
+
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 15;
+
+            // Electric bolt shape
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(-4, 0);
+            ctx.lineTo(-2, 0);
+            ctx.lineTo(-3, 10);
+            ctx.lineTo(3, 2);
+            ctx.lineTo(1, 2);
+            ctx.lineTo(4, -6);
+            ctx.closePath();
+            ctx.fill();
+
+            // Glow core
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.restore();
+
+            // Trail particles
+            if (Math.random() > 0.5) {
+                particles.push({
+                    x: x - Math.cos(angle) * 10,
+                    y: y - Math.sin(angle) * 10,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    life: 15,
+                    maxLife: 15,
+                    size: 3,
+                    color: Math.random() > 0.5 ? '#00ffff' : '#88ffff'
+                });
+            }
+        }
+
+        function createExplosion(x, y, type) {
+            const count = type === 'big' ? 20 : 10;
+            const colors = type === 'electric' ? ['#00ffff', '#88ffff', '#ffffff', '#00ff88'] :
+                          ['#ff8844', '#ffaa44', '#ffcc44', '#ff6622', '#ffffff'];
+
+            for (let i = 0; i < count; i++) {
+                const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+                const speed = 2 + Math.random() * 4;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 30 + Math.random() * 20,
+                    maxLife: 50,
+                    size: 3 + Math.random() * 5,
+                    color: colors[Math.floor(Math.random() * colors.length)]
+                });
+            }
+
+            // Screen shake effect
+            if (type === 'big') {
+                canvas.style.transform = `translate(${(Math.random() - 0.5) * 8}px, ${(Math.random() - 0.5) * 8}px)`;
+                setTimeout(() => canvas.style.transform = '', 50);
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.vx *= 0.96;
+                p.vy *= 0.96;
+                p.size *= 0.97;
+
+                if (p.life <= 0 || p.size < 0.5) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 5;
+                drawPixelRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size, p.color);
+            });
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        function spawnEnemy() {
+            const side = Math.floor(Math.random() * 4);
+            const margin = 60;
+            let x, y;
+
+            switch(side) {
+                case 0: // Top
+                    x = margin + Math.random() * (canvas.width - margin * 2 - 48);
+                    y = -60;
+                    break;
+                case 1: // Right
+                    x = canvas.width + 10;
+                    y = margin + Math.random() * (canvas.height - margin * 2 - 60);
+                    break;
+                case 2: // Bottom
+                    x = margin + Math.random() * (canvas.width - margin * 2 - 48);
+                    y = canvas.height + 10;
+                    break;
+                case 3: // Left
+                    x = -58;
+                    y = margin + Math.random() * (canvas.height - margin * 2 - 60);
+                    break;
+            }
+
+            const baseHealth = 40 + wave * 15;
+            const speedMult = 1 + wave * 0.08;
+
+            enemies.push({
+                x: x,
+                y: y,
+                width: 48,
+                height: 60,
+                speed: (0.8 + Math.random() * 0.4) * speedMult,
+                health: baseHealth,
+                maxHealth: baseHealth,
+                wobble: Math.random() * Math.PI * 2,
+                wobbleSpeed: 0.02 + Math.random() * 0.02
+            });
+        }
+
+        function fireProjectile() {
+            const now = Date.now();
+            if (batteryCharge >= projectileCost && now - lastShotTime > shootCooldown) {
+                batteryCharge -= projectileCost;
+                lastShotTime = now;
+
+                const startX = player.x + player.width / 2;
+                const startY = player.y + player.height / 2;
+
+                projectiles.push({
+                    x: startX,
+                    y: startY,
+                    angle: player.angle,
+                    vx: Math.cos(player.angle) * projectileSpeed,
+                    vy: Math.sin(player.angle) * projectileSpeed,
+                    width: 12,
+                    height: 20
+                });
+
+                createExplosion(startX + Math.cos(player.angle) * 20,
+                               startY + Math.sin(player.angle) * 20, 'electric');
+            }
+        }
+
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        function pointInRect(px, py, rect) {
+            return px >= rect.x && px <= rect.x + rect.width &&
+                   py >= rect.y && py <= rect.y + rect.height;
+        }
+
+        function updateMetricsDisplay() {
+            document.getElementById('scoreDisplay').textContent = score.toLocaleString();
+            document.getElementById('waveDisplay').textContent = wave;
+            document.getElementById('enemyCount').textContent = `${enemiesDefeatedThisWave} / ${enemiesPerWave}`;
+            document.getElementById('chargeBar').style.width = batteryCharge + '%';
+            document.getElementById('chargeBar').style.background =
+                batteryCharge > 60 ? 'linear-gradient(90deg, #00ff88, #88ffcc)' :
+                batteryCharge > 30 ? 'linear-gradient(90deg, #ffaa00, #ffcc44)' :
+                'linear-gradient(90deg, #ff4444, #ff6666)';
+
+            document.getElementById('mwDisplay').textContent = mwGenerated.toFixed(1);
+            document.getElementById('co2Display').textContent = Math.floor(co2Avoided).toLocaleString() + ' kg';
+            document.getElementById('turbinesDisplay').textContent = turbinesRetired;
+            document.getElementById('homesDisplay').textContent = homesPowered.toLocaleString();
+        }
+
+        function nextWave() {
+            wave++;
+            enemiesPerWave = Math.min(5 + wave * 2, 25);
+            enemySpawnRate = Math.max(50, 90 - wave * 5);
+            enemiesSpawnedThisWave = 0;
+            enemiesDefeatedThisWave = 0;
+            waveComplete = false;
+
+            // Bonus
+            batteryCharge = Math.min(100, batteryCharge + 25);
+            score += wave * 500;
+
+            // New fact
+            currentFact = (currentFact + 1) % energyFacts.length;
+            document.getElementById('factDisplay').textContent = energyFacts[currentFact];
+        }
+
+        function update() {
+            if (!gameRunning || gamePaused) return;
+
+            // Player movement
+            player.dx = 0;
+            player.dy = 0;
+
+            if (keys['ArrowLeft'] || keys['KeyA']) player.dx = -player.speed;
+            if (keys['ArrowRight'] || keys['KeyD']) player.dx = player.speed;
+            if (keys['ArrowUp'] || keys['KeyW']) player.dy = -player.speed;
+            if (keys['ArrowDown'] || keys['KeyS']) player.dy = player.speed;
+
+            if (player.dx !== 0 && player.dy !== 0) {
+                player.dx *= 0.707;
+                player.dy *= 0.707;
+            }
+
+            player.x += player.dx;
+            player.y += player.dy;
+
+            // Bounds
+            player.x = Math.max(10, Math.min(canvas.width - player.width - 10, player.x));
+            player.y = Math.max(10, Math.min(canvas.height - player.height - 10, player.y));
+
+            // Aim toward mouse
+            const centerX = player.x + player.width / 2;
+            const centerY = player.y + player.height / 2;
+            player.angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+
+            // Recharge
+            if (batteryCharge < player.maxCharge) {
+                batteryCharge += player.chargeRate;
+                mwGenerated += 0.002;
+            }
+
+            // Continuous fire while holding
+            if (keys['Space']) {
+                fireProjectile();
+            }
+
+            // Projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x < -50 || p.x > canvas.width + 50 ||
+                    p.y < -50 || p.y > canvas.height + 50) {
+                    projectiles.splice(i, 1);
+                }
+            }
+
+            // Wave transition
+            if (waveComplete) {
+                waveTransitionTimer++;
+                if (waveTransitionTimer > 120) {
+                    nextWave();
+                    waveTransitionTimer = 0;
+                }
+                return;
+            }
+
+            // Spawn enemies
+            enemySpawnTimer++;
+            if (enemySpawnTimer >= enemySpawnRate && enemiesSpawnedThisWave < enemiesPerWave) {
+                spawnEnemy();
+                enemiesSpawnedThisWave++;
+                enemySpawnTimer = 0;
+            }
+
+            // Update enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+
+                // Move toward player with wobble
+                enemy.wobble += enemy.wobbleSpeed;
+                const angleToPlayer = Math.atan2(
+                    player.y + player.height/2 - enemy.y - enemy.height/2,
+                    player.x + player.width/2 - enemy.x - enemy.width/2
+                );
+
+                enemy.x += Math.cos(angleToPlayer) * enemy.speed + Math.sin(enemy.wobble) * 0.5;
+                enemy.y += Math.sin(angleToPlayer) * enemy.speed + Math.cos(enemy.wobble) * 0.5;
+
+                // Keep enemies on screen (with margin)
+                const margin = 30;
+                enemy.x = Math.max(-margin, Math.min(canvas.width - enemy.width + margin, enemy.x));
+                enemy.y = Math.max(-margin, Math.min(canvas.height - enemy.height + margin, enemy.y));
+
+                // Collision with player
+                if (checkCollision({
+                    x: player.x + 8,
+                    y: player.y + 8,
+                    width: player.width - 16,
+                    height: player.height - 16
+                }, enemy)) {
+                    createExplosion(player.x + player.width/2, player.y + player.height/2, 'big');
+                    gameOver();
+                    return;
+                }
+
+                // Collision with projectiles
+                for (let j = projectiles.length - 1; j >= 0; j--) {
+                    const p = projectiles[j];
+                    if (checkCollision({
+                        x: p.x - 6,
+                        y: p.y - 10,
+                        width: 12,
+                        height: 20
+                    }, enemy)) {
+                        enemy.health -= 20;
+                        createExplosion(p.x, p.y, 'electric');
+                        projectiles.splice(j, 1);
+
+                        if (enemy.health <= 0) {
+                            createExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2, 'big');
+                            enemies.splice(i, 1);
+
+                            score += 100 + wave * 50;
+                            turbinesRetired++;
+                            co2Avoided += 400;
+                            homesPowered = Math.floor(turbinesRetired * 500);
+                            mwGenerated += 2.5;
+
+                            enemiesDefeatedThisWave++;
+
+                            if (enemiesDefeatedThisWave >= enemiesPerWave && enemiesSpawnedThisWave >= enemiesPerWave) {
+                                waveComplete = true;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            updateParticles();
+            updateMetricsDisplay();
+        }
+
+        function draw() {
+            // Background
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid
+            ctx.strokeStyle = '#151525';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Particles (background layer)
+            drawParticles();
+
+            // Projectiles
+            projectiles.forEach(p => {
+                drawProjectile(p.x, p.y, p.angle);
+            });
+
+            // Enemies
+            enemies.forEach(enemy => {
+                drawGasTurbine(enemy.x, enemy.y, enemy.health, enemy.maxHealth);
+            });
+
+            // Player
+            drawBattery(player.x, player.y, batteryCharge, player.angle);
+
+            // Wave complete banner
+            if (waveComplete) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, canvas.height/2 - 60, canvas.width, 120);
+
+                ctx.fillStyle = '#00ff88';
+                ctx.font = 'bold 28px Courier New';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 20;
+                ctx.fillText(`WAVE ${wave} COMPLETE!`, canvas.width / 2, canvas.height / 2 - 10);
+
+                ctx.font = '14px Courier New';
+                ctx.fillStyle = '#88ffcc';
+                ctx.fillText(`+${wave * 500} bonus points | Battery recharged`, canvas.width / 2, canvas.height / 2 + 25);
+
+                ctx.shadowBlur = 0;
+                ctx.textAlign = 'left';
+            }
+
+            // Pause overlay
+            if (gamePaused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#00ff88';
+                ctx.font = 'bold 36px Courier New';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 20;
+                ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+
+                ctx.font = '14px Courier New';
+                ctx.fillText('Press P to Resume', canvas.width / 2, canvas.height / 2 + 35);
+                ctx.shadowBlur = 0;
+                ctx.textAlign = 'left';
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            gameRunning = true;
+            gamePaused = false;
+            score = 0;
+            wave = 1;
+            batteryCharge = 100;
+            mwGenerated = 0;
+            co2Avoided = 0;
+            homesPowered = 0;
+            turbinesRetired = 0;
+
+            player.x = canvas.width / 2 - player.width / 2;
+            player.y = canvas.height / 2 - player.height / 2;
+
+            projectiles = [];
+            enemies = [];
+            particles = [];
+
+            enemySpawnTimer = 0;
+            enemySpawnRate = 90;
+            enemiesPerWave = 5;
+            enemiesSpawnedThisWave = 0;
+            enemiesDefeatedThisWave = 0;
+            waveComplete = false;
+            waveTransitionTimer = 0;
+
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'none';
+
+            updateMetricsDisplay();
+        }
+
+        function gameOver() {
+            gameRunning = false;
+
+            document.getElementById('finalScore').textContent = score.toLocaleString();
+            document.getElementById('finalWaves').textContent = wave - 1;
+            document.getElementById('finalMW').textContent = mwGenerated.toFixed(1);
+            document.getElementById('finalCO2').textContent = Math.floor(co2Avoided).toLocaleString();
+            document.getElementById('finalTurbines').textContent = turbinesRetired;
+
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameRunning && !gamePaused) {
+                    fireProjectile();
+                }
+            }
+
+            if (e.code === 'KeyP' && gameRunning) {
+                gamePaused = !gamePaused;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameRunning && !gamePaused) {
+                fireProjectile();
+            }
+        });
+
+        // Hold to fire
+        let mouseHeld = false;
+        canvas.addEventListener('mousedown', () => { mouseHeld = true; });
+        canvas.addEventListener('mouseup', () => { mouseHeld = false; });
+        canvas.addEventListener('mouseleave', () => { mouseHeld = false; });
+
+        setInterval(() => {
+            if (mouseHeld && gameRunning && !gamePaused) {
+                fireProjectile();
+            }
+        }, shootCooldown);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') e.preventDefault();
+        });
+
+        // Start
+        gameLoop();
+    </script>
+</body>
+</html>
