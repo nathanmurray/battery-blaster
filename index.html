@@ -299,6 +299,29 @@
                 font-size: 9px;
                 color: #00ff8866;
             }
+            #mobileFactContainer {
+                position: absolute;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                background: rgba(0, 0, 0, 0.6);
+                border: 1px solid #00ff8833;
+                padding: 8px 12px;
+                pointer-events: none;
+            }
+            .mobile-fact-label {
+                color: #00ff8866;
+                font-size: 8px;
+                letter-spacing: 1px;
+                margin-bottom: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            #mobileFactDisplay {
+                color: #88ffcc;
+                font-size: 10px;
+                line-height: 1.4;
+                font-family: 'Courier New', monospace;
+            }
             #mobileHUD {
                 position: absolute;
                 top: 0;
@@ -587,6 +610,10 @@
                 TAP TO FIRE • DRAG TO MOVE
                 <span>Hold for auto-fire</span>
             </div>
+            <div id="mobileFactContainer">
+                <div class="mobile-fact-label">DID YOU KNOW?</div>
+                <div id="mobileFactDisplay">A single utility-scale battery can replace a 50MW gas peaker plant.</div>
+            </div>
         </div>
 
         <div id="sidePanel">
@@ -748,6 +775,25 @@
         let enemiesDefeatedThisWave = 0;
         let waveComplete = false;
         let waveTransitionTimer = 0;
+
+        // High Wind Period & Wind Turbine Collectible
+        let highWindActive = false;
+        let highWindTimer = 0;
+        let highWindDuration = 300; // frames (~5 seconds)
+        let highWindStartFrame = 180; // Start high wind after 3 seconds into wave
+        let windTurbine = null; // Collectible wind turbine
+        let windTurbineCollected = false;
+
+        // Spread Shot Power-up
+        let spreadShotActive = false;
+        let spreadShotTimer = 0;
+        let spreadShotDuration = 480; // frames (~8 seconds)
+        let spreadShotAngle = Math.PI / 6; // 30 degree spread
+
+        // Boss Coal Power Plant
+        let boss = null;
+        let bossSpawned = false;
+        let enemyProjectiles = []; // Projectiles fired by boss
 
         // Particles
         let particles = [];
@@ -916,6 +962,176 @@
             ctx.textAlign = 'left';
         }
 
+        // Draw collectible wind turbine (green/friendly)
+        function drawWindTurbine(x, y) {
+            const s = scaleFactor;
+            const time = Date.now() / 50; // Fast spin for high wind
+
+            // Glow effect
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 20 * s;
+
+            // Tower
+            drawPixelRect(x + 18 * s, y + 20 * s, 12 * s, 40 * s, '#88ccaa');
+            drawPixelRect(x + 20 * s, y + 22 * s, 8 * s, 36 * s, '#aaddbb');
+
+            // Base
+            drawPixelRect(x + 12 * s, y + 56 * s, 24 * s, 8 * s, '#669977');
+
+            // Nacelle (hub)
+            ctx.fillStyle = '#ccffdd';
+            ctx.beginPath();
+            ctx.arc(x + 24 * s, y + 20 * s, 8 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spinning blades (fast for high wind!)
+            ctx.save();
+            ctx.translate(x + 24 * s, y + 20 * s);
+            ctx.rotate(time);
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 3; i++) {
+                ctx.rotate(Math.PI * 2 / 3);
+                // Blade
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-4 * s, -28 * s);
+                ctx.lineTo(0, -30 * s);
+                ctx.lineTo(4 * s, -28 * s);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+
+            ctx.shadowBlur = 0;
+
+            // "WIND" label
+            ctx.fillStyle = '#00ff88';
+            ctx.font = `bold ${Math.floor(10 * s)}px Courier New`;
+            ctx.textAlign = 'center';
+            ctx.fillText('WIND', x + 24 * s, y - 5 * s);
+            ctx.textAlign = 'left';
+
+            // Pulsing collect indicator
+            const pulse = 0.5 + Math.sin(Date.now() / 150) * 0.3;
+            ctx.strokeStyle = `rgba(0, 255, 136, ${pulse})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x + 24 * s, y + 32 * s, 35 * s + Math.sin(Date.now() / 200) * 5, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Draw Boss Coal Power Plant
+        function drawCoalPlant(x, y, health, maxHealth) {
+            const s = scaleFactor;
+            const damageRatio = health / maxHealth;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(x + 40 * s, y + 95 * s, 35 * s, 10 * s, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Main building
+            drawPixelRect(x + 10 * s, y + 40 * s, 60 * s, 50 * s, '#3a3a4a');
+            drawPixelRect(x + 12 * s, y + 42 * s, 56 * s, 46 * s, '#4a4a5a');
+
+            // Furnace glow
+            const glowIntensity = 0.5 + Math.sin(Date.now() / 100) * 0.3;
+            ctx.fillStyle = `rgba(255, ${100 + Math.floor(glowIntensity * 50)}, 0, ${glowIntensity})`;
+            drawPixelRect(x + 20 * s, y + 60 * s, 40 * s, 25 * s, ctx.fillStyle);
+
+            // Smoke stacks (two big ones)
+            drawPixelRect(x + 15 * s, y + 5 * s, 18 * s, 40 * s, '#5a5a6a');
+            drawPixelRect(x + 47 * s, y + 5 * s, 18 * s, 40 * s, '#5a5a6a');
+            drawPixelRect(x + 17 * s, y + 7 * s, 14 * s, 36 * s, '#6a6a7a');
+            drawPixelRect(x + 49 * s, y + 7 * s, 14 * s, 36 * s, '#6a6a7a');
+
+            // Heavy black smoke
+            const smokeTime = Date.now() / 150;
+            ctx.globalAlpha = 0.6;
+            for (let stack = 0; stack < 2; stack++) {
+                const stackX = stack === 0 ? x + 24 * s : x + 56 * s;
+                for (let i = 0; i < 5; i++) {
+                    const offset = Math.sin(smokeTime + i + stack) * 8 * s;
+                    const yOff = (-10 - i * 12) * s;
+                    const size = (10 + i * 4) * s;
+                    ctx.fillStyle = `rgb(${40 + i * 15}, ${40 + i * 15}, ${40 + i * 15})`;
+                    ctx.beginPath();
+                    ctx.arc(stackX + offset, y + yOff, size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.globalAlpha = 1;
+
+            // Conveyor belt with coal
+            drawPixelRect(x - 10 * s, y + 75 * s, 30 * s, 8 * s, '#2a2a2a');
+            for (let i = 0; i < 3; i++) {
+                drawPixelRect(x - 5 * s + i * 8 * s, y + 72 * s, 6 * s, 6 * s, '#1a1a1a');
+            }
+
+            // Warning lights (flash when about to fire)
+            if (Math.floor(Date.now() / 300) % 2 === 0) {
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.arc(x + 24 * s, y + 45 * s, 4 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x + 56 * s, y + 45 * s, 4 * s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Health bar (larger for boss)
+            const barWidth = 70 * s;
+            drawPixelRect(x + 5 * s, y - 15 * s, barWidth, 10 * s, '#222');
+            drawPixelRect(x + 6 * s, y - 14 * s, (barWidth - 2 * s) * damageRatio, 8 * s,
+                damageRatio > 0.6 ? '#ff6644' : damageRatio > 0.3 ? '#ff4422' : '#ff2222');
+
+            // Boss label
+            ctx.fillStyle = '#ff4444';
+            ctx.font = `bold ${Math.floor(11 * s)}px Courier New`;
+            ctx.textAlign = 'center';
+            ctx.fillText('COAL BOSS', x + 40 * s, y - 20 * s);
+            ctx.font = `${Math.floor(8 * s)}px Courier New`;
+            ctx.fillText('DEMAND SPIKE', x + 40 * s, y + 105 * s);
+            ctx.textAlign = 'left';
+
+            // Damage sparks
+            if (damageRatio < 0.5) {
+                for (let i = 0; i < 2; i++) {
+                    if (Math.random() > 0.6) {
+                        ctx.fillStyle = '#ffaa44';
+                        ctx.fillRect(x + 15 * s + Math.random() * 50 * s, y + 40 * s + Math.random() * 40 * s, 4 * s, 4 * s);
+                    }
+                }
+            }
+        }
+
+        // Draw enemy projectile (coal/fire ball)
+        function drawEnemyProjectile(x, y) {
+            const s = scaleFactor;
+
+            ctx.shadowColor = '#ff4400';
+            ctx.shadowBlur = 10 * s;
+
+            // Fire ball
+            ctx.fillStyle = '#ff6622';
+            ctx.beginPath();
+            ctx.arc(x, y, 8 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffaa44';
+            ctx.beginPath();
+            ctx.arc(x, y, 5 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffcc66';
+            ctx.beginPath();
+            ctx.arc(x, y, 2 * s, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+        }
+
         function drawProjectile(x, y, angle) {
             const s = scaleFactor;
             ctx.save();
@@ -964,8 +1180,10 @@
 
         function createExplosion(x, y, type) {
             const s = scaleFactor;
-            const count = type === 'big' ? 20 : 10;
+            const count = type === 'big' ? 20 : type === 'wind' ? 25 : 10;
             const colors = type === 'electric' ? ['#00ffff', '#88ffff', '#ffffff', '#00ff88'] :
+                          type === 'enemy' ? ['#ff4400', '#ff6622', '#ffaa44', '#ff2200'] :
+                          type === 'wind' ? ['#00ff88', '#88ffcc', '#ffffff', '#44ffaa', '#00ffaa'] :
                           ['#ff8844', '#ffaa44', '#ffcc44', '#ff6622', '#ffffff'];
 
             for (let i = 0; i < count; i++) {
@@ -1061,6 +1279,92 @@
             });
         }
 
+        // Spawn collectible wind turbine
+        function spawnWindTurbine() {
+            const s = scaleFactor;
+            const turbineW = Math.floor(48 * s);
+            const turbineH = Math.floor(64 * s);
+
+            // Spawn in a random position away from edges
+            const margin = 80;
+            windTurbine = {
+                x: margin + Math.random() * (canvas.width - margin * 2 - turbineW),
+                y: margin + Math.random() * (canvas.height - margin * 2 - turbineH),
+                width: turbineW,
+                height: turbineH
+            };
+        }
+
+        // Spawn boss coal power plant
+        function spawnBoss() {
+            const s = scaleFactor;
+            const bossW = Math.floor(80 * s);
+            const bossH = Math.floor(100 * s);
+
+            // Spawn from a random edge
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+
+            switch(side) {
+                case 0: // Top
+                    x = canvas.width / 2 - bossW / 2;
+                    y = -bossH;
+                    break;
+                case 1: // Right
+                    x = canvas.width + 10;
+                    y = canvas.height / 2 - bossH / 2;
+                    break;
+                case 2: // Bottom
+                    x = canvas.width / 2 - bossW / 2;
+                    y = canvas.height + 10;
+                    break;
+                case 3: // Left
+                    x = -bossW - 10;
+                    y = canvas.height / 2 - bossH / 2;
+                    break;
+            }
+
+            const bossHealth = 200 + wave * 50;
+
+            boss = {
+                x: x,
+                y: y,
+                width: bossW,
+                height: bossH,
+                speed: 1.2,
+                health: bossHealth,
+                maxHealth: bossHealth,
+                fireTimer: 0,
+                fireRate: 90, // Frames between shots
+                targetX: canvas.width / 2,
+                targetY: canvas.height / 2
+            };
+            bossSpawned = true;
+        }
+
+        // Boss fires a projectile at the player
+        function bossFireProjectile() {
+            if (!boss) return;
+
+            const startX = boss.x + boss.width / 2;
+            const startY = boss.y + boss.height / 2;
+            const angle = Math.atan2(
+                player.y + player.height / 2 - startY,
+                player.x + player.width / 2 - startX
+            );
+
+            enemyProjectiles.push({
+                x: startX,
+                y: startY,
+                vx: Math.cos(angle) * 5,
+                vy: Math.sin(angle) * 5,
+                radius: 8 * scaleFactor
+            });
+
+            // Fire effect
+            createExplosion(startX, startY, 'enemy');
+        }
+
         function fireProjectile() {
             const now = Date.now();
             if (batteryCharge >= projectileCost && now - lastShotTime > shootCooldown) {
@@ -1070,18 +1374,38 @@
                 const startX = player.x + player.width / 2;
                 const startY = player.y + player.height / 2;
 
-                projectiles.push({
-                    x: startX,
-                    y: startY,
-                    angle: player.angle,
-                    vx: Math.cos(player.angle) * projectileSpeed,
-                    vy: Math.sin(player.angle) * projectileSpeed,
-                    width: 12,
-                    height: 20
-                });
-
-                createExplosion(startX + Math.cos(player.angle) * 20,
-                               startY + Math.sin(player.angle) * 20, 'electric');
+                if (spreadShotActive) {
+                    // Fire 5 projectiles in a spread pattern
+                    const spreadAngles = [-spreadShotAngle, -spreadShotAngle/2, 0, spreadShotAngle/2, spreadShotAngle];
+                    spreadAngles.forEach(offset => {
+                        const angle = player.angle + offset;
+                        projectiles.push({
+                            x: startX,
+                            y: startY,
+                            angle: angle,
+                            vx: Math.cos(angle) * projectileSpeed,
+                            vy: Math.sin(angle) * projectileSpeed,
+                            width: 12,
+                            height: 20
+                        });
+                    });
+                    // Bigger muzzle flash for spread shot
+                    createExplosion(startX + Math.cos(player.angle) * 20,
+                                   startY + Math.sin(player.angle) * 20, 'big');
+                } else {
+                    // Normal single shot
+                    projectiles.push({
+                        x: startX,
+                        y: startY,
+                        angle: player.angle,
+                        vx: Math.cos(player.angle) * projectileSpeed,
+                        vy: Math.sin(player.angle) * projectileSpeed,
+                        width: 12,
+                        height: 20
+                    });
+                    createExplosion(startX + Math.cos(player.angle) * 20,
+                                   startY + Math.sin(player.angle) * 20, 'electric');
+                }
             }
         }
 
@@ -1132,6 +1456,15 @@
             enemiesDefeatedThisWave = 0;
             waveComplete = false;
 
+            // Reset high wind / power-up state for new wave
+            highWindActive = false;
+            highWindTimer = 0;
+            windTurbine = null;
+            windTurbineCollected = false;
+            spreadShotActive = false;
+            spreadShotTimer = 0;
+            // Note: boss persists between waves if not killed
+
             // Bonus
             batteryCharge = Math.min(100, batteryCharge + 25);
             score += wave * 500;
@@ -1139,6 +1472,12 @@
             // New fact
             currentFact = (currentFact + 1) % energyFacts.length;
             document.getElementById('factDisplay').textContent = energyFacts[currentFact];
+
+            // Update mobile fact display too
+            const mobileFact = document.getElementById('mobileFactDisplay');
+            if (mobileFact) {
+                mobileFact.textContent = energyFacts[currentFact];
+            }
         }
 
         function update() {
@@ -1203,6 +1542,160 @@
                 if (p.x < -50 || p.x > canvas.width + 50 ||
                     p.y < -50 || p.y > canvas.height + 50) {
                     projectiles.splice(i, 1);
+                }
+            }
+
+            // High Wind Period Logic
+            if (!waveComplete && !highWindActive && !windTurbineCollected) {
+                highWindTimer++;
+                if (highWindTimer >= highWindStartFrame && highWindTimer < highWindStartFrame + highWindDuration) {
+                    highWindActive = true;
+                    // Spawn wind turbine if not already present
+                    if (!windTurbine) {
+                        spawnWindTurbine();
+                    }
+                }
+            }
+
+            // Check if high wind period ended without collection
+            if (highWindActive && highWindTimer >= highWindStartFrame + highWindDuration) {
+                highWindActive = false;
+                windTurbine = null; // Remove uncollected turbine
+            }
+
+            // Wind Turbine Collection
+            if (windTurbine && !windTurbineCollected) {
+                const hitPadding = 5 * scaleFactor;
+                if (checkCollision({
+                    x: player.x + hitPadding,
+                    y: player.y + hitPadding,
+                    width: player.width - hitPadding * 2,
+                    height: player.height - hitPadding * 2
+                }, windTurbine)) {
+                    // Collected!
+                    windTurbineCollected = true;
+                    windTurbine = null;
+                    highWindActive = false;
+                    spreadShotActive = true;
+                    spreadShotTimer = 0;
+
+                    // Big wind explosion effect
+                    createExplosion(player.x + player.width/2, player.y + player.height/2, 'wind');
+                    score += 500;
+                    mwGenerated += 10; // Wind power bonus
+
+                    // Spawn the boss!
+                    if (!bossSpawned) {
+                        spawnBoss();
+                    }
+                }
+            }
+
+            // Spread Shot Timer
+            if (spreadShotActive) {
+                spreadShotTimer++;
+                if (spreadShotTimer >= spreadShotDuration) {
+                    spreadShotActive = false;
+                }
+            }
+
+            // Boss Update
+            if (boss) {
+                // Move boss toward a target position (slowly circles around)
+                boss.targetX = canvas.width / 2 + Math.cos(Date.now() / 2000) * 200;
+                boss.targetY = canvas.height / 2 + Math.sin(Date.now() / 2000) * 150;
+
+                const bossAngle = Math.atan2(boss.targetY - boss.y - boss.height/2, boss.targetX - boss.x - boss.width/2);
+                boss.x += Math.cos(bossAngle) * boss.speed;
+                boss.y += Math.sin(bossAngle) * boss.speed;
+
+                // Keep boss on screen
+                boss.x = Math.max(10, Math.min(canvas.width - boss.width - 10, boss.x));
+                boss.y = Math.max(10, Math.min(canvas.height - boss.height - 10, boss.y));
+
+                // Boss fires at player
+                boss.fireTimer++;
+                if (boss.fireTimer >= boss.fireRate) {
+                    bossFireProjectile();
+                    boss.fireTimer = 0;
+                }
+
+                // Boss collision with player
+                const hitPadding = 10 * scaleFactor;
+                if (checkCollision({
+                    x: player.x + hitPadding,
+                    y: player.y + hitPadding,
+                    width: player.width - hitPadding * 2,
+                    height: player.height - hitPadding * 2
+                }, boss)) {
+                    createExplosion(player.x + player.width/2, player.y + player.height/2, 'big');
+                    gameOver();
+                    return;
+                }
+
+                // Boss collision with projectiles
+                for (let j = projectiles.length - 1; j >= 0; j--) {
+                    const p = projectiles[j];
+                    const projW = 12 * scaleFactor;
+                    const projH = 20 * scaleFactor;
+                    if (checkCollision({
+                        x: p.x - projW / 2,
+                        y: p.y - projH / 2,
+                        width: projW,
+                        height: projH
+                    }, boss)) {
+                        boss.health -= 15;
+                        createExplosion(p.x, p.y, 'electric');
+                        projectiles.splice(j, 1);
+
+                        if (boss.health <= 0) {
+                            createExplosion(boss.x + boss.width/2, boss.y + boss.height/2, 'big');
+                            createExplosion(boss.x + boss.width/4, boss.y + boss.height/4, 'big');
+                            createExplosion(boss.x + boss.width*3/4, boss.y + boss.height*3/4, 'big');
+                            score += 2000 + wave * 500;
+                            co2Avoided += 2000;
+                            turbinesRetired += 5;
+                            homesPowered = Math.floor(turbinesRetired * 500);
+                            mwGenerated += 25;
+                            boss = null;
+                            bossSpawned = false;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Enemy Projectiles Update
+            for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+                const ep = enemyProjectiles[i];
+                ep.x += ep.vx;
+                ep.y += ep.vy;
+
+                // Remove if off screen
+                if (ep.x < -50 || ep.x > canvas.width + 50 ||
+                    ep.y < -50 || ep.y > canvas.height + 50) {
+                    enemyProjectiles.splice(i, 1);
+                    continue;
+                }
+
+                // Collision with player
+                const hitPadding = 8 * scaleFactor;
+                const playerRect = {
+                    x: player.x + hitPadding,
+                    y: player.y + hitPadding,
+                    width: player.width - hitPadding * 2,
+                    height: player.height - hitPadding * 2
+                };
+
+                const dist = Math.sqrt(
+                    Math.pow(ep.x - (playerRect.x + playerRect.width/2), 2) +
+                    Math.pow(ep.y - (playerRect.y + playerRect.height/2), 2)
+                );
+
+                if (dist < ep.radius + Math.min(playerRect.width, playerRect.height) / 2) {
+                    createExplosion(player.x + player.width/2, player.y + player.height/2, 'enemy');
+                    gameOver();
+                    return;
                 }
             }
 
@@ -1330,8 +1823,78 @@
                 drawGasTurbine(enemy.x, enemy.y, enemy.health, enemy.maxHealth);
             });
 
+            // Wind Turbine Collectible
+            if (windTurbine) {
+                drawWindTurbine(windTurbine.x, windTurbine.y);
+            }
+
+            // Boss Coal Plant
+            if (boss) {
+                drawCoalPlant(boss.x, boss.y, boss.health, boss.maxHealth);
+            }
+
+            // Enemy Projectiles
+            enemyProjectiles.forEach(ep => {
+                drawEnemyProjectile(ep.x, ep.y);
+            });
+
             // Player
             drawBattery(player.x, player.y, batteryCharge, player.angle);
+
+            // High Wind Indicator
+            if (highWindActive && !windTurbineCollected) {
+                const pulse = 0.6 + Math.sin(Date.now() / 200) * 0.3;
+                ctx.strokeStyle = `rgba(0, 255, 136, ${pulse})`;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+
+                ctx.fillStyle = '#00ff88';
+                ctx.font = `bold ${isMobile ? 14 : 18}px Courier New`;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 10;
+                ctx.fillText('⚡ HIGH WIND - GRAB THE TURBINE! ⚡', canvas.width / 2, 30);
+                ctx.shadowBlur = 0;
+                ctx.textAlign = 'left';
+            }
+
+            // Spread Shot Active Indicator
+            if (spreadShotActive) {
+                const remainingPercent = 1 - (spreadShotTimer / spreadShotDuration);
+                const barWidth = canvas.width - 20;
+
+                // Power-up bar at top
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(10, 40, barWidth, 12);
+                ctx.fillStyle = '#00ffff';
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(10, 40, barWidth * remainingPercent, 12);
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#00ffff';
+                ctx.font = `bold ${isMobile ? 10 : 12}px Courier New`;
+                ctx.textAlign = 'center';
+                ctx.fillText('SPREAD SHOT ACTIVE', canvas.width / 2, 50);
+                ctx.textAlign = 'left';
+
+                // Demand spike warning
+                if (boss) {
+                    const warnPulse = 0.5 + Math.sin(Date.now() / 100) * 0.4;
+                    ctx.strokeStyle = `rgba(255, 68, 68, ${warnPulse})`;
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+
+                    ctx.fillStyle = '#ff4444';
+                    ctx.font = `bold ${isMobile ? 12 : 14}px Courier New`;
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = '#ff4444';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText('⚠ DEMAND SPIKE - COAL BOSS INCOMING! ⚠', canvas.width / 2, canvas.height - 15);
+                    ctx.shadowBlur = 0;
+                    ctx.textAlign = 'left';
+                }
+            }
 
             // Wave complete banner
             if (waveComplete) {
@@ -1396,6 +1959,7 @@
             projectiles = [];
             enemies = [];
             particles = [];
+            enemyProjectiles = [];
 
             enemySpawnTimer = 0;
             enemySpawnRate = 90;
@@ -1404,6 +1968,16 @@
             enemiesDefeatedThisWave = 0;
             waveComplete = false;
             waveTransitionTimer = 0;
+
+            // Reset high wind / power-up / boss state
+            highWindActive = false;
+            highWindTimer = 0;
+            windTurbine = null;
+            windTurbineCollected = false;
+            spreadShotActive = false;
+            spreadShotTimer = 0;
+            boss = null;
+            bossSpawned = false;
 
             document.getElementById('startScreen').style.display = 'none';
             document.getElementById('gameOverScreen').style.display = 'none';
