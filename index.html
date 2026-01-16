@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Battery Blaster - Energy Transition</title>
     <style>
         * {
@@ -196,6 +196,95 @@
             text-align: center;
             pointer-events: none;
         }
+        /* Mobile styles */
+        @media (max-width: 768px), (pointer: coarse) {
+            body {
+                padding: 0;
+            }
+            #gameWrapper {
+                flex-direction: column;
+                width: 100%;
+                height: 100vh;
+            }
+            #gameContainer {
+                border: 2px solid #00ff88;
+                width: 100%;
+                height: auto;
+            }
+            #gameCanvas {
+                width: 100%;
+                height: auto;
+            }
+            #sidePanel {
+                display: none;
+            }
+            #startScreen h1 {
+                font-size: 24px;
+            }
+            #startScreen h2 {
+                font-size: 10px;
+                margin-bottom: 15px;
+            }
+            .controls {
+                font-size: 10px;
+                padding: 10px 15px;
+            }
+            .start-btn {
+                padding: 12px 35px;
+                font-size: 14px;
+            }
+            #mobileHUD {
+                position: fixed;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                display: flex;
+                justify-content: space-between;
+                z-index: 100;
+                pointer-events: none;
+            }
+            .mobile-stat {
+                background: rgba(0, 0, 0, 0.7);
+                padding: 5px 10px;
+                border: 1px solid #00ff8866;
+                color: #00ff88;
+                font-size: 11px;
+                font-family: 'Courier New', monospace;
+            }
+            .mobile-charge-bar {
+                width: 60px;
+                height: 8px;
+                background: #1a1a2e;
+                border: 1px solid #00ff8844;
+                display: inline-block;
+                vertical-align: middle;
+                margin-left: 5px;
+            }
+            .mobile-charge-fill {
+                height: 100%;
+                background: #00ff88;
+                transition: width 0.1s;
+            }
+        }
+        .touch-indicator {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+        }
+        .touch-indicator-inner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: rgba(0, 255, 136, 0.3);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
     </style>
 </head>
 <body>
@@ -207,12 +296,18 @@
                 <h1>BATTERY BLASTER</h1>
                 <h2>THE ENERGY TRANSITION</h2>
                 <p class="subtitle">Defend the grid with clean energy!</p>
-                <div class="controls">
+                <div class="controls" id="desktopControls">
                     <strong>CONTROLS</strong>
                     WASD / ARROWS - Move Battery<br>
                     AIM WITH MOUSE - Point to target<br>
                     CLICK / SPACE - Fire Electric Charge<br>
                     P - Pause Game
+                </div>
+                <div class="controls" id="mobileControls" style="display: none;">
+                    <strong>TOUCH CONTROLS</strong>
+                    TAP - Fire toward touch point<br>
+                    DRAG - Move battery toward finger<br>
+                    Hold to auto-fire continuously
                 </div>
                 <p style="font-size: 10px; color: #666; max-width: 350px; margin-top: 15px; line-height: 1.6;">
                     Battery energy storage is revolutionizing the grid by replacing<br>
@@ -236,6 +331,28 @@
                 </p>
                 <button class="start-btn" onclick="startGame()">TRY AGAIN</button>
             </div>
+
+            <div class="touch-indicator" id="touchIndicator">
+                <div class="touch-indicator-inner"></div>
+            </div>
+        </div>
+
+        <div id="mobileHUD" style="display: none;">
+            <div class="mobile-stat">
+                SCORE: <span id="mobileScore">0</span>
+            </div>
+            <div class="mobile-stat">
+                WAVE: <span id="mobileWave">1</span>
+            </div>
+            <div class="mobile-stat">
+                <span id="mobileChargeLabel">⚡</span>
+                <div class="mobile-charge-bar">
+                    <div class="mobile-charge-fill" id="mobileChargeBar" style="width: 100%;"></div>
+                </div>
+            </div>
+            <button id="mobilePauseBtn" class="mobile-stat" style="pointer-events: auto; cursor: pointer; border: 1px solid #00ff88; background: rgba(0,0,0,0.7);">
+                ||
+            </button>
         </div>
 
         <div id="sidePanel">
@@ -292,6 +409,69 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        // Mobile detection and scaling
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+                         ('ontouchstart' in window) ||
+                         (navigator.maxTouchPoints > 0);
+        let scaleFactor = 1;
+        let canvasScale = 1;
+        const baseWidth = 700;
+        const baseHeight = 600;
+
+        // Mobile-specific settings
+        if (isMobile) {
+            scaleFactor = 0.75; // Objects 25% smaller on mobile
+            document.getElementById('mobileControls').style.display = 'block';
+            document.getElementById('desktopControls').style.display = 'none';
+            document.getElementById('mobileHUD').style.display = 'flex';
+        }
+
+        // Touch control state
+        let touchActive = false;
+        let touchX = 0;
+        let touchY = 0;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMoveX = 0;
+        let touchMoveY = 0;
+        const touchIndicator = document.getElementById('touchIndicator');
+
+        // Resize canvas for mobile
+        function resizeCanvas() {
+            if (isMobile) {
+                const maxWidth = window.innerWidth;
+                const maxHeight = window.innerHeight * 0.85; // Leave room for HUD
+                const aspectRatio = baseWidth / baseHeight;
+
+                let newWidth = maxWidth;
+                let newHeight = newWidth / aspectRatio;
+
+                if (newHeight > maxHeight) {
+                    newHeight = maxHeight;
+                    newWidth = newHeight * aspectRatio;
+                }
+
+                canvas.style.width = newWidth + 'px';
+                canvas.style.height = newHeight + 'px';
+                canvasScale = newWidth / baseWidth;
+            }
+        }
+
+        // Get touch position relative to canvas
+        function getTouchPos(touch) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (touch.clientX - rect.left) / canvasScale,
+                y: (touch.clientY - rect.top) / canvasScale
+            };
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
+
         // Game State
         let gameRunning = false;
         let gamePaused = false;
@@ -313,8 +493,8 @@
         const player = {
             x: 350,
             y: 300,
-            width: 48,
-            height: 64,
+            width: Math.floor(48 * scaleFactor),
+            height: Math.floor(64 * scaleFactor),
             speed: 4.5,
             dx: 0,
             dy: 0,
@@ -367,170 +547,173 @@
         }
 
         function drawBattery(x, y, charge, angle) {
+            const s = scaleFactor;
             ctx.save();
-            ctx.translate(x + 24, y + 32);
+            ctx.translate(x + 24 * s, y + 32 * s);
 
             // Draw aim direction indicator
             ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(Math.cos(angle) * 60, Math.sin(angle) * 60);
+            ctx.lineTo(Math.cos(angle) * 60 * s, Math.sin(angle) * 60 * s);
             ctx.stroke();
 
             // Aiming reticle
-            const reticleX = Math.cos(angle) * 55;
-            const reticleY = Math.sin(angle) * 55;
+            const reticleX = Math.cos(angle) * 55 * s;
+            const reticleY = Math.sin(angle) * 55 * s;
             ctx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
             ctx.beginPath();
-            ctx.arc(reticleX, reticleY, 8, 0, Math.PI * 2);
+            ctx.arc(reticleX, reticleY, 8 * s, 0, Math.PI * 2);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(reticleX - 12, reticleY);
-            ctx.lineTo(reticleX + 12, reticleY);
-            ctx.moveTo(reticleX, reticleY - 12);
-            ctx.lineTo(reticleX, reticleY + 12);
+            ctx.moveTo(reticleX - 12 * s, reticleY);
+            ctx.lineTo(reticleX + 12 * s, reticleY);
+            ctx.moveTo(reticleX, reticleY - 12 * s);
+            ctx.lineTo(reticleX, reticleY + 12 * s);
             ctx.stroke();
 
             ctx.restore();
 
             // Battery body
-            drawPixelRect(x, y + 8, 48, 56, '#1a1a2e');
-            drawPixelRect(x + 2, y + 10, 44, 52, '#16213e');
+            drawPixelRect(x, y + 8 * s, 48 * s, 56 * s, '#1a1a2e');
+            drawPixelRect(x + 2 * s, y + 10 * s, 44 * s, 52 * s, '#16213e');
 
             // Terminal
-            drawPixelRect(x + 16, y, 16, 10, '#4a4a6a');
-            drawPixelRect(x + 18, y + 2, 12, 6, '#6a6a8a');
+            drawPixelRect(x + 16 * s, y, 16 * s, 10 * s, '#4a4a6a');
+            drawPixelRect(x + 18 * s, y + 2 * s, 12 * s, 6 * s, '#6a6a8a');
 
             // Charge level
-            const chargeHeight = Math.floor((charge / 100) * 44);
+            const chargeHeight = Math.floor((charge / 100) * 44 * s);
             const chargeColor = charge > 60 ? '#00ff88' : charge > 30 ? '#ffaa00' : '#ff4444';
-            drawPixelRect(x + 6, y + 14 + (44 - chargeHeight), 36, chargeHeight, chargeColor);
+            drawPixelRect(x + 6 * s, y + 14 * s + (44 * s - chargeHeight), 36 * s, chargeHeight, chargeColor);
 
             // Segments
             for (let i = 0; i < 4; i++) {
-                drawPixelRect(x + 4, y + 14 + i * 11, 40, 2, '#0a0a0a');
+                drawPixelRect(x + 4 * s, y + 14 * s + i * 11 * s, 40 * s, 2 * s, '#0a0a0a');
             }
 
             // Lightning bolt
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.moveTo(x + 28, y + 20);
-            ctx.lineTo(x + 20, y + 36);
-            ctx.lineTo(x + 24, y + 36);
-            ctx.lineTo(x + 20, y + 52);
-            ctx.lineTo(x + 32, y + 32);
-            ctx.lineTo(x + 26, y + 32);
+            ctx.moveTo(x + 28 * s, y + 20 * s);
+            ctx.lineTo(x + 20 * s, y + 36 * s);
+            ctx.lineTo(x + 24 * s, y + 36 * s);
+            ctx.lineTo(x + 20 * s, y + 52 * s);
+            ctx.lineTo(x + 32 * s, y + 32 * s);
+            ctx.lineTo(x + 26 * s, y + 32 * s);
             ctx.closePath();
             ctx.fill();
 
             // Glow
             ctx.shadowColor = chargeColor;
-            ctx.shadowBlur = 20;
-            drawPixelRect(x + 6, y + 14 + (44 - chargeHeight), 36, chargeHeight, chargeColor);
+            ctx.shadowBlur = 20 * s;
+            drawPixelRect(x + 6 * s, y + 14 * s + (44 * s - chargeHeight), 36 * s, chargeHeight, chargeColor);
             ctx.shadowBlur = 0;
 
             // Shield effect when low charge
             if (charge < 20) {
                 ctx.strokeStyle = `rgba(255, 68, 68, ${0.3 + Math.sin(Date.now() / 100) * 0.2})`;
                 ctx.lineWidth = 2;
-                ctx.strokeRect(x - 4, y - 4, 56, 72);
+                ctx.strokeRect(x - 4 * s, y - 4 * s, 56 * s, 72 * s);
             }
         }
 
         function drawGasTurbine(x, y, health, maxHealth) {
+            const s = scaleFactor;
             const damageRatio = health / maxHealth;
 
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
             ctx.beginPath();
-            ctx.ellipse(x + 24, y + 62, 20, 6, 0, 0, Math.PI * 2);
+            ctx.ellipse(x + 24 * s, y + 62 * s, 20 * s, 6 * s, 0, 0, Math.PI * 2);
             ctx.fill();
 
             // Base
-            drawPixelRect(x + 12, y + 48, 24, 8, '#4a3a2a');
-            drawPixelRect(x + 8, y + 54, 32, 6, '#5a4a3a');
+            drawPixelRect(x + 12 * s, y + 48 * s, 24 * s, 8 * s, '#4a3a2a');
+            drawPixelRect(x + 8 * s, y + 54 * s, 32 * s, 6 * s, '#5a4a3a');
 
             // Body - show damage
             const bodyColor = damageRatio > 0.5 ? '#6a6a7a' : '#5a4a4a';
-            drawPixelRect(x + 8, y + 16, 32, 34, bodyColor);
-            drawPixelRect(x + 10, y + 18, 28, 30, damageRatio > 0.5 ? '#8a8a9a' : '#7a6a6a');
+            drawPixelRect(x + 8 * s, y + 16 * s, 32 * s, 34 * s, bodyColor);
+            drawPixelRect(x + 10 * s, y + 18 * s, 28 * s, 30 * s, damageRatio > 0.5 ? '#8a8a9a' : '#7a6a6a');
 
             // Damage sparks
             if (damageRatio < 0.5) {
                 if (Math.random() > 0.7) {
                     ctx.fillStyle = '#ffaa44';
-                    ctx.fillRect(x + 10 + Math.random() * 28, y + 18 + Math.random() * 30, 3, 3);
+                    ctx.fillRect(x + 10 * s + Math.random() * 28 * s, y + 18 * s + Math.random() * 30 * s, 3 * s, 3 * s);
                 }
             }
 
             // Stack
-            drawPixelRect(x + 18, y, 12, 18, '#5a5a6a');
-            drawPixelRect(x + 20, y + 2, 8, 14, '#7a7a8a');
+            drawPixelRect(x + 18 * s, y, 12 * s, 18 * s, '#5a5a6a');
+            drawPixelRect(x + 20 * s, y + 2 * s, 8 * s, 14 * s, '#7a7a8a');
 
             // Smoke
             const smokeIntensity = damageRatio;
             const time = Date.now() / 200;
             ctx.globalAlpha = 0.4 + smokeIntensity * 0.3;
             for (let i = 0; i < 3; i++) {
-                const offset = Math.sin(time + i) * 3;
-                const yOff = -8 - i * 8;
-                const size = 6 + i * 2;
+                const offset = Math.sin(time + i) * 3 * s;
+                const yOff = (-8 - i * 8) * s;
+                const size = (6 + i * 2) * s;
                 ctx.fillStyle = `rgb(${100 + i * 30}, ${100 + i * 30}, ${100 + i * 30})`;
-                drawPixelRect(x + 20 + offset, y + yOff, size, size, ctx.fillStyle);
+                drawPixelRect(x + 20 * s + offset, y + yOff, size, size, ctx.fillStyle);
             }
             ctx.globalAlpha = 1;
 
             // Spinning blades
             ctx.save();
-            ctx.translate(x + 24, y + 32);
+            ctx.translate(x + 24 * s, y + 32 * s);
             const rotation = Date.now() / (100 + (1 - damageRatio) * 200);
             ctx.rotate(rotation);
             for (let i = 0; i < 3; i++) {
                 ctx.rotate(Math.PI * 2 / 3);
-                drawPixelRect(-2, -12, 4, 12, '#3a3a4a');
+                drawPixelRect(-2 * s, -12 * s, 4 * s, 12 * s, '#3a3a4a');
             }
             ctx.restore();
 
             // Health bar
-            const barWidth = 40;
-            drawPixelRect(x + 4, y - 8, barWidth, 6, '#222');
-            drawPixelRect(x + 5, y - 7, (barWidth - 2) * damageRatio, 4,
+            const barWidth = 40 * s;
+            drawPixelRect(x + 4 * s, y - 8 * s, barWidth, 6 * s, '#222');
+            drawPixelRect(x + 5 * s, y - 7 * s, (barWidth - 2 * s) * damageRatio, 4 * s,
                 damageRatio > 0.6 ? '#ff6644' : damageRatio > 0.3 ? '#ff4422' : '#ff2222');
 
             // CO2 emission indicator
             ctx.fillStyle = '#ff6644';
-            ctx.font = 'bold 9px Courier New';
+            ctx.font = `bold ${Math.floor(9 * s)}px Courier New`;
             ctx.textAlign = 'center';
-            ctx.fillText('CO2', x + 24, y - 12);
+            ctx.fillText('CO2', x + 24 * s, y - 12 * s);
             ctx.textAlign = 'left';
         }
 
         function drawProjectile(x, y, angle) {
+            const s = scaleFactor;
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle + Math.PI / 2);
 
             ctx.shadowColor = '#00ffff';
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 15 * s;
 
             // Electric bolt shape
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(-4, 0);
-            ctx.lineTo(-2, 0);
-            ctx.lineTo(-3, 10);
-            ctx.lineTo(3, 2);
-            ctx.lineTo(1, 2);
-            ctx.lineTo(4, -6);
+            ctx.moveTo(0, -10 * s);
+            ctx.lineTo(-4 * s, 0);
+            ctx.lineTo(-2 * s, 0);
+            ctx.lineTo(-3 * s, 10 * s);
+            ctx.lineTo(3 * s, 2 * s);
+            ctx.lineTo(1 * s, 2 * s);
+            ctx.lineTo(4 * s, -6 * s);
             ctx.closePath();
             ctx.fill();
 
             // Glow core
             ctx.fillStyle = '#00ffff';
             ctx.beginPath();
-            ctx.arc(0, 0, 3, 0, Math.PI * 2);
+            ctx.arc(0, 0, 3 * s, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.shadowBlur = 0;
@@ -539,26 +722,27 @@
             // Trail particles
             if (Math.random() > 0.5) {
                 particles.push({
-                    x: x - Math.cos(angle) * 10,
-                    y: y - Math.sin(angle) * 10,
+                    x: x - Math.cos(angle) * 10 * s,
+                    y: y - Math.sin(angle) * 10 * s,
                     vx: (Math.random() - 0.5) * 2,
                     vy: (Math.random() - 0.5) * 2,
                     life: 15,
                     maxLife: 15,
-                    size: 3,
+                    size: 3 * s,
                     color: Math.random() > 0.5 ? '#00ffff' : '#88ffff'
                 });
             }
         }
 
         function createExplosion(x, y, type) {
+            const s = scaleFactor;
             const count = type === 'big' ? 20 : 10;
             const colors = type === 'electric' ? ['#00ffff', '#88ffff', '#ffffff', '#00ff88'] :
                           ['#ff8844', '#ffaa44', '#ffcc44', '#ff6622', '#ffffff'];
 
             for (let i = 0; i < count; i++) {
                 const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
-                const speed = 2 + Math.random() * 4;
+                const speed = (2 + Math.random() * 4) * s;
                 particles.push({
                     x: x,
                     y: y,
@@ -566,14 +750,15 @@
                     vy: Math.sin(angle) * speed,
                     life: 30 + Math.random() * 20,
                     maxLife: 50,
-                    size: 3 + Math.random() * 5,
+                    size: (3 + Math.random() * 5) * s,
                     color: colors[Math.floor(Math.random() * colors.length)]
                 });
             }
 
-            // Screen shake effect
+            // Screen shake effect (less intense on mobile)
             if (type === 'big') {
-                canvas.style.transform = `translate(${(Math.random() - 0.5) * 8}px, ${(Math.random() - 0.5) * 8}px)`;
+                const shake = isMobile ? 4 : 8;
+                canvas.style.transform = `translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)`;
                 setTimeout(() => canvas.style.transform = '', 50);
             }
         }
@@ -606,26 +791,29 @@
         }
 
         function spawnEnemy() {
+            const s = scaleFactor;
             const side = Math.floor(Math.random() * 4);
             const margin = 60;
+            const enemyW = Math.floor(48 * s);
+            const enemyH = Math.floor(60 * s);
             let x, y;
 
             switch(side) {
                 case 0: // Top
-                    x = margin + Math.random() * (canvas.width - margin * 2 - 48);
-                    y = -60;
+                    x = margin + Math.random() * (canvas.width - margin * 2 - enemyW);
+                    y = -enemyH;
                     break;
                 case 1: // Right
                     x = canvas.width + 10;
-                    y = margin + Math.random() * (canvas.height - margin * 2 - 60);
+                    y = margin + Math.random() * (canvas.height - margin * 2 - enemyH);
                     break;
                 case 2: // Bottom
-                    x = margin + Math.random() * (canvas.width - margin * 2 - 48);
+                    x = margin + Math.random() * (canvas.width - margin * 2 - enemyW);
                     y = canvas.height + 10;
                     break;
                 case 3: // Left
-                    x = -58;
-                    y = margin + Math.random() * (canvas.height - margin * 2 - 60);
+                    x = -enemyW - 10;
+                    y = margin + Math.random() * (canvas.height - margin * 2 - enemyH);
                     break;
             }
 
@@ -635,8 +823,8 @@
             enemies.push({
                 x: x,
                 y: y,
-                width: 48,
-                height: 60,
+                width: enemyW,
+                height: enemyH,
                 speed: (0.8 + Math.random() * 0.4) * speedMult,
                 health: baseHealth,
                 maxHealth: baseHealth,
@@ -695,6 +883,17 @@
             document.getElementById('co2Display').textContent = Math.floor(co2Avoided).toLocaleString() + ' kg';
             document.getElementById('turbinesDisplay').textContent = turbinesRetired;
             document.getElementById('homesDisplay').textContent = homesPowered.toLocaleString();
+
+            // Update mobile HUD
+            if (isMobile) {
+                document.getElementById('mobileScore').textContent = score.toLocaleString();
+                document.getElementById('mobileWave').textContent = wave;
+                const mobileChargeBar = document.getElementById('mobileChargeBar');
+                mobileChargeBar.style.width = batteryCharge + '%';
+                mobileChargeBar.style.background =
+                    batteryCharge > 60 ? '#00ff88' :
+                    batteryCharge > 30 ? '#ffaa00' : '#ff4444';
+            }
         }
 
         function nextWave() {
@@ -721,10 +920,28 @@
             player.dx = 0;
             player.dy = 0;
 
+            // Keyboard movement
             if (keys['ArrowLeft'] || keys['KeyA']) player.dx = -player.speed;
             if (keys['ArrowRight'] || keys['KeyD']) player.dx = player.speed;
             if (keys['ArrowUp'] || keys['KeyW']) player.dy = -player.speed;
             if (keys['ArrowDown'] || keys['KeyS']) player.dy = player.speed;
+
+            // Touch movement - move toward touch point when dragging
+            if (isMobile && touchActive) {
+                const centerX = player.x + player.width / 2;
+                const centerY = player.y + player.height / 2;
+                const distX = touchMoveX - centerX;
+                const distY = touchMoveY - centerY;
+                const distance = Math.sqrt(distX * distX + distY * distY);
+
+                // Move toward touch if it's far enough from player (dead zone)
+                const deadZone = 50;
+                if (distance > deadZone) {
+                    const moveSpeed = player.speed;
+                    player.dx = (distX / distance) * moveSpeed;
+                    player.dy = (distY / distance) * moveSpeed;
+                }
+            }
 
             if (player.dx !== 0 && player.dy !== 0) {
                 player.dx *= 0.707;
@@ -804,11 +1021,12 @@
                 enemy.y = Math.max(-margin, Math.min(canvas.height - enemy.height + margin, enemy.y));
 
                 // Collision with player
+                const hitPadding = 8 * scaleFactor;
                 if (checkCollision({
-                    x: player.x + 8,
-                    y: player.y + 8,
-                    width: player.width - 16,
-                    height: player.height - 16
+                    x: player.x + hitPadding,
+                    y: player.y + hitPadding,
+                    width: player.width - hitPadding * 2,
+                    height: player.height - hitPadding * 2
                 }, enemy)) {
                     createExplosion(player.x + player.width/2, player.y + player.height/2, 'big');
                     gameOver();
@@ -818,11 +1036,13 @@
                 // Collision with projectiles
                 for (let j = projectiles.length - 1; j >= 0; j--) {
                     const p = projectiles[j];
+                    const projW = 12 * scaleFactor;
+                    const projH = 20 * scaleFactor;
                     if (checkCollision({
-                        x: p.x - 6,
-                        y: p.y - 10,
-                        width: 12,
-                        height: 20
+                        x: p.x - projW / 2,
+                        y: p.y - projH / 2,
+                        width: projW,
+                        height: projH
                     }, enemy)) {
                         enemy.health -= 20;
                         createExplosion(p.x, p.y, 'electric');
@@ -892,19 +1112,20 @@
 
             // Wave complete banner
             if (waveComplete) {
+                const bannerH = isMobile ? 80 : 120;
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, canvas.height/2 - 60, canvas.width, 120);
+                ctx.fillRect(0, canvas.height/2 - bannerH/2, canvas.width, bannerH);
 
                 ctx.fillStyle = '#00ff88';
-                ctx.font = 'bold 28px Courier New';
+                ctx.font = `bold ${isMobile ? 20 : 28}px Courier New`;
                 ctx.textAlign = 'center';
                 ctx.shadowColor = '#00ff88';
                 ctx.shadowBlur = 20;
                 ctx.fillText(`WAVE ${wave} COMPLETE!`, canvas.width / 2, canvas.height / 2 - 10);
 
-                ctx.font = '14px Courier New';
+                ctx.font = `${isMobile ? 11 : 14}px Courier New`;
                 ctx.fillStyle = '#88ffcc';
-                ctx.fillText(`+${wave * 500} bonus points | Battery recharged`, canvas.width / 2, canvas.height / 2 + 25);
+                ctx.fillText(`+${wave * 500} bonus points | Battery recharged`, canvas.width / 2, canvas.height / 2 + 20);
 
                 ctx.shadowBlur = 0;
                 ctx.textAlign = 'left';
@@ -916,14 +1137,14 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 ctx.fillStyle = '#00ff88';
-                ctx.font = 'bold 36px Courier New';
+                ctx.font = `bold ${isMobile ? 28 : 36}px Courier New`;
                 ctx.textAlign = 'center';
                 ctx.shadowColor = '#00ff88';
                 ctx.shadowBlur = 20;
                 ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
 
-                ctx.font = '14px Courier New';
-                ctx.fillText('Press P to Resume', canvas.width / 2, canvas.height / 2 + 35);
+                ctx.font = `${isMobile ? 12 : 14}px Courier New`;
+                ctx.fillText(isMobile ? 'Tap to Resume' : 'Press P to Resume', canvas.width / 2, canvas.height / 2 + 35);
                 ctx.shadowBlur = 0;
                 ctx.textAlign = 'left';
             }
@@ -1026,6 +1247,109 @@
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space') e.preventDefault();
         });
+
+        // Touch controls for mobile
+        if (isMobile) {
+            let touchHeld = false;
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length > 0) {
+                    // If paused, resume on tap
+                    if (gameRunning && gamePaused) {
+                        gamePaused = false;
+                        return;
+                    }
+
+                    const pos = getTouchPos(e.touches[0]);
+                    touchX = pos.x;
+                    touchY = pos.y;
+                    touchStartX = pos.x;
+                    touchStartY = pos.y;
+                    touchMoveX = pos.x;
+                    touchMoveY = pos.y;
+                    touchActive = true;
+                    touchHeld = true;
+
+                    // Update aim direction
+                    const centerX = player.x + player.width / 2;
+                    const centerY = player.y + player.height / 2;
+                    mouseX = touchX;
+                    mouseY = touchY;
+
+                    // Show touch indicator
+                    if (touchIndicator) {
+                        touchIndicator.style.display = 'block';
+                        const rect = canvas.getBoundingClientRect();
+                        touchIndicator.style.left = (e.touches[0].clientX - rect.left - 40) + 'px';
+                        touchIndicator.style.top = (e.touches[0].clientY - rect.top - 40) + 'px';
+                    }
+
+                    // Fire on touch
+                    if (gameRunning && !gamePaused) {
+                        fireProjectile();
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length > 0 && touchActive) {
+                    const pos = getTouchPos(e.touches[0]);
+                    touchMoveX = pos.x;
+                    touchMoveY = pos.y;
+
+                    // Update aim direction to touch position
+                    mouseX = pos.x;
+                    mouseY = pos.y;
+
+                    // Update touch indicator position
+                    if (touchIndicator) {
+                        const rect = canvas.getBoundingClientRect();
+                        touchIndicator.style.left = (e.touches[0].clientX - rect.left - 40) + 'px';
+                        touchIndicator.style.top = (e.touches[0].clientY - rect.top - 40) + 'px';
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchActive = false;
+                touchHeld = false;
+
+                // Hide touch indicator
+                if (touchIndicator) {
+                    touchIndicator.style.display = 'none';
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchcancel', (e) => {
+                touchActive = false;
+                touchHeld = false;
+                if (touchIndicator) {
+                    touchIndicator.style.display = 'none';
+                }
+            });
+
+            // Auto-fire while touch is held
+            setInterval(() => {
+                if (touchHeld && gameRunning && !gamePaused) {
+                    fireProjectile();
+                }
+            }, shootCooldown);
+
+            // Mobile pause button
+            const pauseBtn = document.getElementById('mobilePauseBtn');
+            if (pauseBtn) {
+                pauseBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (gameRunning) {
+                        gamePaused = !gamePaused;
+                    }
+                }, { passive: false });
+            }
+        }
 
         // Start
         gameLoop();
