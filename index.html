@@ -200,70 +200,173 @@
         @media (max-width: 768px), (pointer: coarse) {
             body {
                 padding: 0;
+                overflow: hidden;
             }
             #gameWrapper {
                 flex-direction: column;
-                width: 100%;
+                width: 100vw;
                 height: 100vh;
+                height: 100dvh;
             }
             #gameContainer {
-                border: 2px solid #00ff88;
+                border: none;
+                border-bottom: 2px solid #00ff88;
                 width: 100%;
-                height: auto;
+                height: 65vh;
+                height: 65dvh;
+                position: relative;
+                box-shadow: none;
             }
             #gameCanvas {
                 width: 100%;
-                height: auto;
+                height: 100%;
+                object-fit: contain;
             }
             #sidePanel {
                 display: none;
             }
+            #startScreen, #gameOverScreen {
+                border-radius: 0;
+            }
             #startScreen h1 {
-                font-size: 24px;
+                font-size: 22px;
+                margin-bottom: 2px;
             }
             #startScreen h2 {
-                font-size: 10px;
+                font-size: 9px;
+                margin-bottom: 10px;
+            }
+            .subtitle {
+                font-size: 12px;
                 margin-bottom: 15px;
             }
             .controls {
-                font-size: 10px;
-                padding: 10px 15px;
+                font-size: 9px;
+                padding: 8px 12px;
+                margin: 10px 0;
             }
             .start-btn {
-                padding: 12px 35px;
-                font-size: 14px;
+                padding: 10px 30px;
+                font-size: 13px;
+                margin-top: 15px;
+            }
+            #startScreen > p[style] {
+                display: none;
+            }
+            .final-stats {
+                font-size: 11px;
+                padding: 10px 15px;
+                margin: 10px 0;
+            }
+            #gameOverScreen h1 {
+                font-size: 22px;
+            }
+            #gameOverScreen .subtitle {
+                font-size: 11px;
+            }
+            #gameOverScreen > p[style] {
+                display: none;
+            }
+        }
+        /* Mobile Controls Area */
+        #mobileControls-area {
+            display: none;
+        }
+        @media (max-width: 768px), (pointer: coarse) {
+            #mobileControls-area {
+                display: flex;
+                width: 100%;
+                height: 35vh;
+                height: 35dvh;
+                background: linear-gradient(180deg, #0d0d1a 0%, #0a0a12 100%);
+                border-top: 2px solid #00ff8844;
+                position: relative;
+            }
+            .control-zone {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            }
+            .joystick-area {
+                width: 120px;
+                height: 120px;
+                border: 3px solid #00ff8844;
+                border-radius: 50%;
+                background: rgba(0, 255, 136, 0.05);
+                position: relative;
+            }
+            .joystick-knob {
+                width: 50px;
+                height: 50px;
+                background: radial-gradient(circle, #00ff88 0%, #00aa55 100%);
+                border-radius: 50%;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+            }
+            .fire-button {
+                width: 100px;
+                height: 100px;
+                border: 3px solid #ff884444;
+                border-radius: 50%;
+                background: rgba(255, 136, 68, 0.1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Courier New', monospace;
+                color: #ff8844;
+                font-size: 12px;
+                font-weight: bold;
+                text-shadow: 0 0 10px #ff8844;
+            }
+            .fire-button.active {
+                background: rgba(255, 136, 68, 0.3);
+                box-shadow: 0 0 20px rgba(255, 136, 68, 0.5);
             }
             #mobileHUD {
-                position: fixed;
-                top: 10px;
-                left: 10px;
-                right: 10px;
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
                 display: flex;
-                justify-content: space-between;
+                justify-content: space-around;
+                padding: 8px 5px;
+                background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
                 z-index: 100;
                 pointer-events: none;
             }
             .mobile-stat {
-                background: rgba(0, 0, 0, 0.7);
-                padding: 5px 10px;
-                border: 1px solid #00ff8866;
+                background: transparent;
+                padding: 3px 8px;
+                border: none;
                 color: #00ff88;
-                font-size: 11px;
+                font-size: 10px;
                 font-family: 'Courier New', monospace;
+                text-shadow: 0 0 5px #00ff88;
             }
             .mobile-charge-bar {
-                width: 60px;
-                height: 8px;
+                width: 50px;
+                height: 6px;
                 background: #1a1a2e;
                 border: 1px solid #00ff8844;
                 display: inline-block;
                 vertical-align: middle;
-                margin-left: 5px;
+                margin-left: 3px;
             }
             .mobile-charge-fill {
                 height: 100%;
                 background: #00ff88;
                 transition: width 0.1s;
+            }
+            #mobilePauseBtn {
+                pointer-events: auto;
+                padding: 3px 10px;
+                border: 1px solid #00ff8866 !important;
+                background: rgba(0,0,0,0.5) !important;
             }
         }
         .touch-indicator {
@@ -305,9 +408,8 @@
                 </div>
                 <div class="controls" id="mobileControls" style="display: none;">
                     <strong>TOUCH CONTROLS</strong>
-                    TAP - Fire toward touch point<br>
-                    DRAG - Move battery toward finger<br>
-                    Hold to auto-fire continuously
+                    LEFT JOYSTICK - Move & Aim<br>
+                    FIRE BUTTON - Shoot (hold to auto-fire)
                 </div>
                 <p style="font-size: 10px; color: #666; max-width: 350px; margin-top: 15px; line-height: 1.6;">
                     Battery energy storage is revolutionizing the grid by replacing<br>
@@ -335,24 +437,37 @@
             <div class="touch-indicator" id="touchIndicator">
                 <div class="touch-indicator-inner"></div>
             </div>
+
+            <div id="mobileHUD" style="display: none;">
+                <div class="mobile-stat">
+                    SCORE: <span id="mobileScore">0</span>
+                </div>
+                <div class="mobile-stat">
+                    WAVE: <span id="mobileWave">1</span>
+                </div>
+                <div class="mobile-stat">
+                    <span id="mobileChargeLabel">⚡</span>
+                    <div class="mobile-charge-bar">
+                        <div class="mobile-charge-fill" id="mobileChargeBar" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <button id="mobilePauseBtn" class="mobile-stat" style="cursor: pointer;">
+                    ||
+                </button>
+            </div>
         </div>
 
-        <div id="mobileHUD" style="display: none;">
-            <div class="mobile-stat">
-                SCORE: <span id="mobileScore">0</span>
-            </div>
-            <div class="mobile-stat">
-                WAVE: <span id="mobileWave">1</span>
-            </div>
-            <div class="mobile-stat">
-                <span id="mobileChargeLabel">⚡</span>
-                <div class="mobile-charge-bar">
-                    <div class="mobile-charge-fill" id="mobileChargeBar" style="width: 100%;"></div>
+        <div id="mobileControls-area">
+            <div class="control-zone" id="joystickZone">
+                <div class="joystick-area" id="joystickArea">
+                    <div class="joystick-knob" id="joystickKnob"></div>
                 </div>
             </div>
-            <button id="mobilePauseBtn" class="mobile-stat" style="pointer-events: auto; cursor: pointer; border: 1px solid #00ff88; background: rgba(0,0,0,0.7);">
-                ||
-            </button>
+            <div class="control-zone" id="fireZone">
+                <div class="fire-button" id="fireButton">
+                    FIRE
+                </div>
+            </div>
         </div>
 
         <div id="sidePanel">
@@ -436,24 +551,23 @@
         let touchMoveY = 0;
         const touchIndicator = document.getElementById('touchIndicator');
 
+        // Joystick state
+        let joystickActive = false;
+        let joystickX = 0; // -1 to 1
+        let joystickY = 0; // -1 to 1
+        let fireButtonActive = false;
+
+        // Mobile control elements
+        const joystickArea = document.getElementById('joystickArea');
+        const joystickKnob = document.getElementById('joystickKnob');
+        const fireButton = document.getElementById('fireButton');
+
         // Resize canvas for mobile
         function resizeCanvas() {
             if (isMobile) {
-                const maxWidth = window.innerWidth;
-                const maxHeight = window.innerHeight * 0.85; // Leave room for HUD
-                const aspectRatio = baseWidth / baseHeight;
-
-                let newWidth = maxWidth;
-                let newHeight = newWidth / aspectRatio;
-
-                if (newHeight > maxHeight) {
-                    newHeight = maxHeight;
-                    newWidth = newHeight * aspectRatio;
-                }
-
-                canvas.style.width = newWidth + 'px';
-                canvas.style.height = newHeight + 'px';
-                canvasScale = newWidth / baseWidth;
+                // Canvas will fill container via CSS, calculate scale for coordinate mapping
+                const rect = canvas.getBoundingClientRect();
+                canvasScale = rect.width / baseWidth;
             }
         }
 
@@ -926,20 +1040,18 @@
             if (keys['ArrowUp'] || keys['KeyW']) player.dy = -player.speed;
             if (keys['ArrowDown'] || keys['KeyS']) player.dy = player.speed;
 
-            // Touch movement - move toward touch point when dragging
-            if (isMobile && touchActive) {
-                const centerX = player.x + player.width / 2;
-                const centerY = player.y + player.height / 2;
-                const distX = touchMoveX - centerX;
-                const distY = touchMoveY - centerY;
-                const distance = Math.sqrt(distX * distX + distY * distY);
+            // Joystick movement for mobile
+            if (isMobile && joystickActive) {
+                player.dx = joystickX * player.speed;
+                player.dy = joystickY * player.speed;
 
-                // Move toward touch if it's far enough from player (dead zone)
-                const deadZone = 50;
-                if (distance > deadZone) {
-                    const moveSpeed = player.speed;
-                    player.dx = (distX / distance) * moveSpeed;
-                    player.dy = (distY / distance) * moveSpeed;
+                // Update aim direction based on joystick (aim in direction of movement)
+                if (Math.abs(joystickX) > 0.1 || Math.abs(joystickY) > 0.1) {
+                    const centerX = player.x + player.width / 2;
+                    const centerY = player.y + player.height / 2;
+                    // Aim ahead of player in joystick direction
+                    mouseX = centerX + joystickX * 100;
+                    mouseY = centerY + joystickY * 100;
                 }
             }
 
@@ -1250,93 +1362,154 @@
 
         // Touch controls for mobile
         if (isMobile) {
-            let touchHeld = false;
+            // Joystick touch handling
+            let joystickTouchId = null;
+            const joystickRadius = 60; // Half of joystick area size
+            const knobRadius = 25; // Half of knob size
+            const maxKnobDistance = joystickRadius - knobRadius;
 
-            canvas.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (e.touches.length > 0) {
-                    // If paused, resume on tap
-                    if (gameRunning && gamePaused) {
-                        gamePaused = false;
-                        return;
-                    }
-
-                    const pos = getTouchPos(e.touches[0]);
-                    touchX = pos.x;
-                    touchY = pos.y;
-                    touchStartX = pos.x;
-                    touchStartY = pos.y;
-                    touchMoveX = pos.x;
-                    touchMoveY = pos.y;
-                    touchActive = true;
-                    touchHeld = true;
-
-                    // Update aim direction
-                    const centerX = player.x + player.width / 2;
-                    const centerY = player.y + player.height / 2;
-                    mouseX = touchX;
-                    mouseY = touchY;
-
-                    // Show touch indicator
-                    if (touchIndicator) {
-                        touchIndicator.style.display = 'block';
-                        const rect = canvas.getBoundingClientRect();
-                        touchIndicator.style.left = (e.touches[0].clientX - rect.left - 40) + 'px';
-                        touchIndicator.style.top = (e.touches[0].clientY - rect.top - 40) + 'px';
-                    }
-
-                    // Fire on touch
-                    if (gameRunning && !gamePaused) {
-                        fireProjectile();
-                    }
+            function updateJoystickKnob() {
+                if (joystickKnob) {
+                    const offsetX = joystickX * maxKnobDistance;
+                    const offsetY = joystickY * maxKnobDistance;
+                    joystickKnob.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
                 }
-            }, { passive: false });
+            }
 
-            canvas.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                if (e.touches.length > 0 && touchActive) {
-                    const pos = getTouchPos(e.touches[0]);
-                    touchMoveX = pos.x;
-                    touchMoveY = pos.y;
+            function resetJoystick() {
+                joystickActive = false;
+                joystickX = 0;
+                joystickY = 0;
+                joystickTouchId = null;
+                updateJoystickKnob();
+            }
 
-                    // Update aim direction to touch position
-                    mouseX = pos.x;
-                    mouseY = pos.y;
+            if (joystickArea) {
+                joystickArea.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (e.touches.length > 0 && joystickTouchId === null) {
+                        joystickTouchId = e.touches[0].identifier;
+                        joystickActive = true;
 
-                    // Update touch indicator position
-                    if (touchIndicator) {
-                        const rect = canvas.getBoundingClientRect();
-                        touchIndicator.style.left = (e.touches[0].clientX - rect.left - 40) + 'px';
-                        touchIndicator.style.top = (e.touches[0].clientY - rect.top - 40) + 'px';
+                        const rect = joystickArea.getBoundingClientRect();
+                        const centerX = rect.left + rect.width / 2;
+                        const centerY = rect.top + rect.height / 2;
+                        const touchX = e.touches[0].clientX;
+                        const touchY = e.touches[0].clientY;
+
+                        const dx = touchX - centerX;
+                        const dy = touchY - centerY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance > 0) {
+                            const clampedDist = Math.min(distance, maxKnobDistance);
+                            joystickX = (dx / distance) * (clampedDist / maxKnobDistance);
+                            joystickY = (dy / distance) * (clampedDist / maxKnobDistance);
+                        }
+                        updateJoystickKnob();
                     }
-                }
-            }, { passive: false });
+                }, { passive: false });
 
-            canvas.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                touchActive = false;
-                touchHeld = false;
+                joystickArea.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    for (let i = 0; i < e.touches.length; i++) {
+                        if (e.touches[i].identifier === joystickTouchId) {
+                            const rect = joystickArea.getBoundingClientRect();
+                            const centerX = rect.left + rect.width / 2;
+                            const centerY = rect.top + rect.height / 2;
+                            const touchX = e.touches[i].clientX;
+                            const touchY = e.touches[i].clientY;
 
-                // Hide touch indicator
-                if (touchIndicator) {
-                    touchIndicator.style.display = 'none';
-                }
-            }, { passive: false });
+                            const dx = touchX - centerX;
+                            const dy = touchY - centerY;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
 
-            canvas.addEventListener('touchcancel', (e) => {
-                touchActive = false;
-                touchHeld = false;
-                if (touchIndicator) {
-                    touchIndicator.style.display = 'none';
-                }
-            });
+                            if (distance > 0) {
+                                const clampedDist = Math.min(distance, maxKnobDistance);
+                                joystickX = (dx / distance) * (clampedDist / maxKnobDistance);
+                                joystickY = (dy / distance) * (clampedDist / maxKnobDistance);
+                            } else {
+                                joystickX = 0;
+                                joystickY = 0;
+                            }
+                            updateJoystickKnob();
+                            break;
+                        }
+                    }
+                }, { passive: false });
 
-            // Auto-fire while touch is held
+                joystickArea.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    let found = false;
+                    for (let i = 0; i < e.touches.length; i++) {
+                        if (e.touches[i].identifier === joystickTouchId) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        resetJoystick();
+                    }
+                }, { passive: false });
+
+                joystickArea.addEventListener('touchcancel', (e) => {
+                    resetJoystick();
+                }, { passive: false });
+            }
+
+            // Fire button touch handling
+            let fireTouchId = null;
+
+            if (fireButton) {
+                fireButton.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (e.touches.length > 0) {
+                        fireTouchId = e.touches[0].identifier;
+                        fireButtonActive = true;
+                        fireButton.classList.add('active');
+                        if (gameRunning && !gamePaused) {
+                            fireProjectile();
+                        }
+                    }
+                }, { passive: false });
+
+                fireButton.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    let found = false;
+                    for (let i = 0; i < e.touches.length; i++) {
+                        if (e.touches[i].identifier === fireTouchId) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        fireButtonActive = false;
+                        fireTouchId = null;
+                        fireButton.classList.remove('active');
+                    }
+                }, { passive: false });
+
+                fireButton.addEventListener('touchcancel', (e) => {
+                    fireButtonActive = false;
+                    fireTouchId = null;
+                    fireButton.classList.remove('active');
+                }, { passive: false });
+            }
+
+            // Auto-fire while fire button is held
             setInterval(() => {
-                if (touchHeld && gameRunning && !gamePaused) {
+                if (fireButtonActive && gameRunning && !gamePaused) {
                     fireProjectile();
                 }
             }, shootCooldown);
+
+            // Canvas tap to unpause
+            canvas.addEventListener('touchstart', (e) => {
+                if (gameRunning && gamePaused) {
+                    e.preventDefault();
+                    gamePaused = false;
+                }
+            }, { passive: false });
 
             // Mobile pause button
             const pauseBtn = document.getElementById('mobilePauseBtn');
