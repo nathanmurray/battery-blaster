@@ -1706,6 +1706,11 @@
 
             // Wave transition
             if (waveComplete) {
+                // Keep projectiles and particles cleared during transition
+                projectiles = [];
+                enemyProjectiles = [];
+                particles = [];
+
                 waveTransitionTimer++;
                 if (waveTransitionTimer > 120) {
                     nextWave();
@@ -1783,9 +1788,10 @@
 
                             if (enemiesDefeatedThisWave >= enemiesPerWave && enemiesSpawnedThisWave >= enemiesPerWave) {
                                 waveComplete = true;
-                                // Clear projectiles on wave complete
+                                // Clear projectiles and particles on wave complete
                                 projectiles = [];
                                 enemyProjectiles = [];
+                                particles = [];
                             }
                         }
                         break;
