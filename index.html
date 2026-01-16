@@ -1656,11 +1656,14 @@
         }
 
         // Allow Enter key to submit name
-        document.getElementById('playerNameInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                window.submitPlayerName();
-            }
-        });
+        const nameInput = document.getElementById('playerNameInput');
+        if (nameInput) {
+            nameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    window.submitPlayerName();
+                }
+            });
+        }
 
         // Save or update high score in Firebase
         async function saveHighScore(name, newScore) {
