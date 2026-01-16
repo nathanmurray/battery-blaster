@@ -769,22 +769,22 @@
         // Enemies
         let enemies = [];
         let enemySpawnTimer = 0;
-        let enemySpawnRate = isMobile ? 120 : 90; // Slower spawn on mobile
+        let enemySpawnRate = 120;
         let enemiesPerWave = 5;
         let enemiesSpawnedThisWave = 0;
         let enemiesDefeatedThisWave = 0;
         let waveComplete = false;
         let waveTransitionTimer = 0;
 
-        // Mobile difficulty adjustments
-        const mobileEnemySpeedMult = 0.7; // Enemies 30% slower on mobile
-        const mobileBossFireRate = 140; // Boss fires slower on mobile (vs 90 on desktop)
-        const mobileEnemyProjectileSpeed = 3.5; // Slower boss projectiles on mobile (vs 5)
+        // Difficulty settings
+        const enemySpeedMult = 0.7;
+        const bossFireRate = 140;
+        const enemyProjectileSpeed = 3.5;
 
         // High Wind Period & Wind Turbine Collectible
         let highWindActive = false;
         let highWindTimer = 0;
-        let highWindDuration = isMobile ? 420 : 300; // Longer window on mobile (~7 sec vs ~5 sec)
+        let highWindDuration = 420; // ~7 seconds
         let highWindStartFrame = 180; // Start high wind after 3 seconds into wave
         let windTurbine = null; // Collectible wind turbine
         let windTurbineCollected = false;
@@ -792,7 +792,7 @@
         // Spread Shot Power-up
         let spreadShotActive = false;
         let spreadShotTimer = 0;
-        let spreadShotDuration = isMobile ? 600 : 480; // Longer power-up on mobile (~10 sec vs ~8 sec)
+        let spreadShotDuration = 600; // ~10 seconds
         let spreadShotAngle = Math.PI / 6; // 30 degree spread
 
         // Boss Coal Power Plant
@@ -1276,7 +1276,7 @@
                 y: y,
                 width: enemyW,
                 height: enemyH,
-                speed: (0.8 + Math.random() * 0.4) * speedMult * (isMobile ? mobileEnemySpeedMult : 1),
+                speed: (0.8 + Math.random() * 0.4) * speedMult * enemySpeedMult,
                 health: baseHealth,
                 maxHealth: baseHealth,
                 wobble: Math.random() * Math.PI * 2,
@@ -1340,7 +1340,7 @@
                 health: bossHealth,
                 maxHealth: bossHealth,
                 fireTimer: 0,
-                fireRate: isMobile ? mobileBossFireRate : 90, // Frames between shots
+                fireRate: bossFireRate, // Frames between shots
                 targetX: canvas.width / 2,
                 targetY: canvas.height / 2
             };
@@ -1361,8 +1361,8 @@
             enemyProjectiles.push({
                 x: startX,
                 y: startY,
-                vx: Math.cos(angle) * (isMobile ? mobileEnemyProjectileSpeed : 5),
-                vy: Math.sin(angle) * (isMobile ? mobileEnemyProjectileSpeed : 5),
+                vx: Math.cos(angle) * enemyProjectileSpeed,
+                vy: Math.sin(angle) * enemyProjectileSpeed,
                 radius: 8 * scaleFactor
             });
 
@@ -1455,8 +1455,8 @@
 
         function nextWave() {
             wave++;
-            enemiesPerWave = Math.min(5 + wave * 2, isMobile ? 20 : 25); // Fewer enemies on mobile
-            enemySpawnRate = Math.max(isMobile ? 70 : 50, (isMobile ? 120 : 90) - wave * 5); // Slower spawns on mobile
+            enemiesPerWave = Math.min(5 + wave * 2, 20);
+            enemySpawnRate = Math.max(70, 120 - wave * 5);
             enemiesSpawnedThisWave = 0;
             enemiesDefeatedThisWave = 0;
             waveComplete = false;
@@ -1783,6 +1783,9 @@
 
                             if (enemiesDefeatedThisWave >= enemiesPerWave && enemiesSpawnedThisWave >= enemiesPerWave) {
                                 waveComplete = true;
+                                // Clear projectiles on wave complete
+                                projectiles = [];
+                                enemyProjectiles = [];
                             }
                         }
                         break;
@@ -1997,6 +2000,11 @@
 
         async function gameOver() {
             gameRunning = false;
+
+            // Clear all projectiles and particles
+            projectiles = [];
+            enemyProjectiles = [];
+            particles = [];
 
             document.getElementById('finalScore').textContent = score.toLocaleString();
             document.getElementById('finalWaves').textContent = wave - 1;
