@@ -281,51 +281,23 @@
                 background: linear-gradient(180deg, #0d0d1a 0%, #0a0a12 100%);
                 border-top: 2px solid #00ff8844;
                 position: relative;
-            }
-            .control-zone {
-                flex: 1;
-                display: flex;
                 align-items: center;
                 justify-content: center;
-                position: relative;
+                touch-action: none;
             }
-            .joystick-area {
-                width: 120px;
-                height: 120px;
-                border: 3px solid #00ff8844;
-                border-radius: 50%;
-                background: rgba(0, 255, 136, 0.05);
-                position: relative;
-            }
-            .joystick-knob {
-                width: 50px;
-                height: 50px;
-                background: radial-gradient(circle, #00ff88 0%, #00aa55 100%);
-                border-radius: 50%;
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
-            }
-            .fire-button {
-                width: 100px;
-                height: 100px;
-                border: 3px solid #ff884444;
-                border-radius: 50%;
-                background: rgba(255, 136, 68, 0.1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
+            .touch-zone-hint {
+                color: #00ff8844;
                 font-family: 'Courier New', monospace;
-                color: #ff8844;
-                font-size: 12px;
-                font-weight: bold;
-                text-shadow: 0 0 10px #ff8844;
+                font-size: 11px;
+                text-align: center;
+                pointer-events: none;
+                user-select: none;
             }
-            .fire-button.active {
-                background: rgba(255, 136, 68, 0.3);
-                box-shadow: 0 0 20px rgba(255, 136, 68, 0.5);
+            .touch-zone-hint span {
+                display: block;
+                margin-top: 5px;
+                font-size: 9px;
+                color: #00ff8866;
             }
             #mobileHUD {
                 position: absolute;
@@ -408,8 +380,9 @@
                 </div>
                 <div class="controls" id="mobileControls" style="display: none;">
                     <strong>TOUCH CONTROLS</strong>
-                    LEFT JOYSTICK - Move & Aim<br>
-                    FIRE BUTTON - Shoot (hold to auto-fire)
+                    TAP - Fire in current direction<br>
+                    HOLD - Auto-fire continuously<br>
+                    DRAG - Move battery
                 </div>
                 <p style="font-size: 10px; color: #666; max-width: 350px; margin-top: 15px; line-height: 1.6;">
                     Battery energy storage is revolutionizing the grid by replacing<br>
@@ -458,15 +431,9 @@
         </div>
 
         <div id="mobileControls-area">
-            <div class="control-zone" id="joystickZone">
-                <div class="joystick-area" id="joystickArea">
-                    <div class="joystick-knob" id="joystickKnob"></div>
-                </div>
-            </div>
-            <div class="control-zone" id="fireZone">
-                <div class="fire-button" id="fireButton">
-                    FIRE
-                </div>
+            <div class="touch-zone-hint">
+                TAP TO FIRE • DRAG TO MOVE
+                <span>Hold for auto-fire</span>
             </div>
         </div>
 
@@ -543,24 +510,16 @@
 
         // Touch control state
         let touchActive = false;
-        let touchX = 0;
-        let touchY = 0;
         let touchStartX = 0;
         let touchStartY = 0;
-        let touchMoveX = 0;
-        let touchMoveY = 0;
+        let touchCurrentX = 0;
+        let touchCurrentY = 0;
+        let touchDragX = 0; // Movement direction -1 to 1
+        let touchDragY = 0;
         const touchIndicator = document.getElementById('touchIndicator');
 
-        // Joystick state
-        let joystickActive = false;
-        let joystickX = 0; // -1 to 1
-        let joystickY = 0; // -1 to 1
-        let fireButtonActive = false;
-
         // Mobile control elements
-        const joystickArea = document.getElementById('joystickArea');
-        const joystickKnob = document.getElementById('joystickKnob');
-        const fireButton = document.getElementById('fireButton');
+        const mobileControlsArea = document.getElementById('mobileControls-area');
 
         // Resize canvas for mobile
         function resizeCanvas() {
@@ -1040,19 +999,16 @@
             if (keys['ArrowUp'] || keys['KeyW']) player.dy = -player.speed;
             if (keys['ArrowDown'] || keys['KeyS']) player.dy = player.speed;
 
-            // Joystick movement for mobile
-            if (isMobile && joystickActive) {
-                player.dx = joystickX * player.speed;
-                player.dy = joystickY * player.speed;
+            // Touch drag movement for mobile
+            if (isMobile && touchActive && (Math.abs(touchDragX) > 0.1 || Math.abs(touchDragY) > 0.1)) {
+                player.dx = touchDragX * player.speed;
+                player.dy = touchDragY * player.speed;
 
-                // Update aim direction based on joystick (aim in direction of movement)
-                if (Math.abs(joystickX) > 0.1 || Math.abs(joystickY) > 0.1) {
-                    const centerX = player.x + player.width / 2;
-                    const centerY = player.y + player.height / 2;
-                    // Aim ahead of player in joystick direction
-                    mouseX = centerX + joystickX * 100;
-                    mouseY = centerY + joystickY * 100;
-                }
+                // Update aim direction based on movement
+                const centerX = player.x + player.width / 2;
+                const centerY = player.y + player.height / 2;
+                mouseX = centerX + touchDragX * 100;
+                mouseY = centerY + touchDragY * 100;
             }
 
             if (player.dx !== 0 && player.dy !== 0) {
@@ -1362,143 +1318,86 @@
 
         // Touch controls for mobile
         if (isMobile) {
-            // Joystick touch handling
-            let joystickTouchId = null;
-            const joystickRadius = 60; // Half of joystick area size
-            const knobRadius = 25; // Half of knob size
-            const maxKnobDistance = joystickRadius - knobRadius;
+            let touchId = null;
+            const dragThreshold = 15; // Pixels before drag is registered
 
-            function updateJoystickKnob() {
-                if (joystickKnob) {
-                    const offsetX = joystickX * maxKnobDistance;
-                    const offsetY = joystickY * maxKnobDistance;
-                    joystickKnob.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
-                }
-            }
-
-            function resetJoystick() {
-                joystickActive = false;
-                joystickX = 0;
-                joystickY = 0;
-                joystickTouchId = null;
-                updateJoystickKnob();
-            }
-
-            if (joystickArea) {
-                joystickArea.addEventListener('touchstart', (e) => {
+            if (mobileControlsArea) {
+                mobileControlsArea.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    if (e.touches.length > 0 && joystickTouchId === null) {
-                        joystickTouchId = e.touches[0].identifier;
-                        joystickActive = true;
+                    if (e.touches.length > 0 && touchId === null) {
+                        const touch = e.touches[0];
+                        touchId = touch.identifier;
+                        touchActive = true;
+                        touchStartX = touch.clientX;
+                        touchStartY = touch.clientY;
+                        touchCurrentX = touch.clientX;
+                        touchCurrentY = touch.clientY;
+                        touchDragX = 0;
+                        touchDragY = 0;
 
-                        const rect = joystickArea.getBoundingClientRect();
-                        const centerX = rect.left + rect.width / 2;
-                        const centerY = rect.top + rect.height / 2;
-                        const touchX = e.touches[0].clientX;
-                        const touchY = e.touches[0].clientY;
-
-                        const dx = touchX - centerX;
-                        const dy = touchY - centerY;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-
-                        if (distance > 0) {
-                            const clampedDist = Math.min(distance, maxKnobDistance);
-                            joystickX = (dx / distance) * (clampedDist / maxKnobDistance);
-                            joystickY = (dy / distance) * (clampedDist / maxKnobDistance);
-                        }
-                        updateJoystickKnob();
-                    }
-                }, { passive: false });
-
-                joystickArea.addEventListener('touchmove', (e) => {
-                    e.preventDefault();
-                    for (let i = 0; i < e.touches.length; i++) {
-                        if (e.touches[i].identifier === joystickTouchId) {
-                            const rect = joystickArea.getBoundingClientRect();
-                            const centerX = rect.left + rect.width / 2;
-                            const centerY = rect.top + rect.height / 2;
-                            const touchX = e.touches[i].clientX;
-                            const touchY = e.touches[i].clientY;
-
-                            const dx = touchX - centerX;
-                            const dy = touchY - centerY;
-                            const distance = Math.sqrt(dx * dx + dy * dy);
-
-                            if (distance > 0) {
-                                const clampedDist = Math.min(distance, maxKnobDistance);
-                                joystickX = (dx / distance) * (clampedDist / maxKnobDistance);
-                                joystickY = (dy / distance) * (clampedDist / maxKnobDistance);
-                            } else {
-                                joystickX = 0;
-                                joystickY = 0;
-                            }
-                            updateJoystickKnob();
-                            break;
-                        }
-                    }
-                }, { passive: false });
-
-                joystickArea.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    let found = false;
-                    for (let i = 0; i < e.touches.length; i++) {
-                        if (e.touches[i].identifier === joystickTouchId) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        resetJoystick();
-                    }
-                }, { passive: false });
-
-                joystickArea.addEventListener('touchcancel', (e) => {
-                    resetJoystick();
-                }, { passive: false });
-            }
-
-            // Fire button touch handling
-            let fireTouchId = null;
-
-            if (fireButton) {
-                fireButton.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    if (e.touches.length > 0) {
-                        fireTouchId = e.touches[0].identifier;
-                        fireButtonActive = true;
-                        fireButton.classList.add('active');
+                        // Fire immediately on touch
                         if (gameRunning && !gamePaused) {
                             fireProjectile();
                         }
                     }
                 }, { passive: false });
 
-                fireButton.addEventListener('touchend', (e) => {
+                mobileControlsArea.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    for (let i = 0; i < e.touches.length; i++) {
+                        if (e.touches[i].identifier === touchId) {
+                            const touch = e.touches[i];
+                            touchCurrentX = touch.clientX;
+                            touchCurrentY = touch.clientY;
+
+                            // Calculate drag from start position
+                            const dx = touchCurrentX - touchStartX;
+                            const dy = touchCurrentY - touchStartY;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            if (distance > dragThreshold) {
+                                // Normalize and clamp to -1 to 1
+                                const maxDrag = 80; // Max drag distance for full speed
+                                const normalizedDist = Math.min(distance, maxDrag) / maxDrag;
+                                touchDragX = (dx / distance) * normalizedDist;
+                                touchDragY = (dy / distance) * normalizedDist;
+                            } else {
+                                touchDragX = 0;
+                                touchDragY = 0;
+                            }
+                            break;
+                        }
+                    }
+                }, { passive: false });
+
+                mobileControlsArea.addEventListener('touchend', (e) => {
                     e.preventDefault();
                     let found = false;
                     for (let i = 0; i < e.touches.length; i++) {
-                        if (e.touches[i].identifier === fireTouchId) {
+                        if (e.touches[i].identifier === touchId) {
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
-                        fireButtonActive = false;
-                        fireTouchId = null;
-                        fireButton.classList.remove('active');
+                        touchActive = false;
+                        touchId = null;
+                        touchDragX = 0;
+                        touchDragY = 0;
                     }
                 }, { passive: false });
 
-                fireButton.addEventListener('touchcancel', (e) => {
-                    fireButtonActive = false;
-                    fireTouchId = null;
-                    fireButton.classList.remove('active');
+                mobileControlsArea.addEventListener('touchcancel', (e) => {
+                    touchActive = false;
+                    touchId = null;
+                    touchDragX = 0;
+                    touchDragY = 0;
                 }, { passive: false });
             }
 
-            // Auto-fire while fire button is held
+            // Auto-fire while touch is held
             setInterval(() => {
-                if (fireButtonActive && gameRunning && !gamePaused) {
+                if (touchActive && gameRunning && !gamePaused) {
                     fireProjectile();
                 }
             }, shootCooldown);
