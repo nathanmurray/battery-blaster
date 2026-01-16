@@ -360,9 +360,155 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+        /* Name prompt modal */
+        #namePrompt {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: #00ff88;
+            font-family: 'Courier New', monospace;
+        }
+        #namePrompt h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff88;
+        }
+        #namePrompt p {
+            font-size: 12px;
+            color: #88ffcc;
+            margin-bottom: 20px;
+        }
+        #namePrompt input {
+            padding: 12px 20px;
+            font-size: 16px;
+            font-family: 'Courier New', monospace;
+            background: #0a0a12;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            text-align: center;
+            width: 250px;
+            margin-bottom: 15px;
+        }
+        #namePrompt input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        }
+        #namePrompt input::placeholder {
+            color: #00ff8866;
+        }
+        #namePrompt .prompt-buttons {
+            display: flex;
+            gap: 15px;
+        }
+        #namePrompt button {
+            padding: 10px 25px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            background: transparent;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        #namePrompt button:hover {
+            background: #00ff88;
+            color: #000;
+        }
+        #namePrompt .skip-btn {
+            border-color: #666;
+            color: #666;
+        }
+        #namePrompt .skip-btn:hover {
+            background: #666;
+            color: #000;
+        }
+        /* Scoreboard styles */
+        .scoreboard {
+            margin: 15px 0;
+            background: #0a0a1266;
+            border: 1px solid #00ff8833;
+            padding: 10px 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .scoreboard-title {
+            color: #00ff88;
+            font-size: 12px;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #00ff8844;
+            padding-bottom: 5px;
+        }
+        .scoreboard-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 11px;
+            border-bottom: 1px solid #00ff8822;
+        }
+        .scoreboard-entry:last-child {
+            border-bottom: none;
+        }
+        .scoreboard-entry.current-player {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+        .scoreboard-rank {
+            color: #00ff88;
+            width: 25px;
+        }
+        .scoreboard-name {
+            flex: 1;
+            color: #88ffcc;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            margin: 0 10px;
+        }
+        .scoreboard-score {
+            color: #ffffff;
+            text-shadow: 0 0 5px #00ff88;
+        }
+        .scoreboard-loading {
+            color: #666;
+            font-size: 11px;
+            text-align: center;
+            padding: 10px;
+        }
+        @media (max-width: 768px), (pointer: coarse) {
+            #namePrompt h2 {
+                font-size: 18px;
+            }
+            #namePrompt input {
+                width: 200px;
+                font-size: 14px;
+            }
+            .scoreboard {
+                max-height: 120px;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Name Prompt Modal -->
+    <div id="namePrompt">
+        <h2>ENTER YOUR CALLSIGN</h2>
+        <p>Join the leaderboard and track your high scores</p>
+        <input type="text" id="playerNameInput" placeholder="Your name..." maxlength="20" autocomplete="off">
+        <div class="prompt-buttons">
+            <button onclick="submitPlayerName()">CONFIRM</button>
+            <button class="skip-btn" onclick="skipNameEntry()">SKIP</button>
+        </div>
+    </div>
+
     <div id="gameWrapper">
         <div id="gameContainer">
             <canvas id="gameCanvas" width="700" height="600"></canvas>
@@ -400,6 +546,12 @@
                     <div><span class="stat-label">MW Dispatched</span><span id="finalMW">0</span></div>
                     <div><span class="stat-label">CO2 Avoided</span><span id="finalCO2">0</span> kg</div>
                     <div><span class="stat-label">Turbines Retired</span><span id="finalTurbines">0</span></div>
+                </div>
+                <div id="scoreboardContainer" class="scoreboard" style="display: none;">
+                    <div class="scoreboard-title">TOP OPERATORS</div>
+                    <div id="scoreboardList">
+                        <div class="scoreboard-loading">Loading rankings...</div>
+                    </div>
                 </div>
                 <p style="font-size: 11px; color: #88ffcc; max-width: 300px;">
                     Every battery deployed helps accelerate<br>the transition to clean energy.
@@ -557,6 +709,9 @@
         let co2Avoided = 0;
         let homesPowered = 0;
         let turbinesRetired = 0;
+
+        // Hook for Firebase integration (will be set by Firebase module)
+        window.onGameOver = null;
 
         // Mouse position for aiming
         let mouseX = canvas.width / 2;
@@ -1256,7 +1411,7 @@
             updateMetricsDisplay();
         }
 
-        function gameOver() {
+        async function gameOver() {
             gameRunning = false;
 
             document.getElementById('finalScore').textContent = score.toLocaleString();
@@ -1264,6 +1419,17 @@
             document.getElementById('finalMW').textContent = mwGenerated.toFixed(1);
             document.getElementById('finalCO2').textContent = Math.floor(co2Avoided).toLocaleString();
             document.getElementById('finalTurbines').textContent = turbinesRetired;
+
+            // Call Firebase hook if available (for scoreboard)
+            if (window.onGameOver) {
+                await window.onGameOver({
+                    score: score,
+                    wave: wave,
+                    mwGenerated: mwGenerated,
+                    co2Avoided: co2Avoided,
+                    turbinesRetired: turbinesRetired
+                });
+            }
 
             document.getElementById('gameOverScreen').style.display = 'flex';
         }
@@ -1425,6 +1591,179 @@
 
         // Start
         gameLoop();
+    </script>
+
+    <!-- Firebase Integration -->
+    <script type="module">
+        // Import Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
+        import { getDatabase, ref, get, set, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCly-__olSW31_CWI8ZywsbMke94Yn4n1M",
+            authDomain: "battery-blaster.firebaseapp.com",
+            databaseURL: "https://battery-blaster-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "battery-blaster",
+            storageBucket: "battery-blaster.firebasestorage.app",
+            messagingSenderId: "84791201877",
+            appId: "1:84791201877:web:d2cab6990e259eb6f984dc",
+            measurementId: "G-QXEL3F1EDW"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+
+        // Player state
+        let playerName = null;
+        let scoreboardEnabled = false;
+
+        // Create a sanitized key from player name (Firebase doesn't allow certain characters in keys)
+        function sanitizeKey(name) {
+            return name.toLowerCase().replace(/[.#$[\]]/g, '_').replace(/\s+/g, '_');
+        }
+
+        // Submit player name
+        window.submitPlayerName = function() {
+            const input = document.getElementById('playerNameInput');
+            const name = input.value.trim();
+
+            if (name.length > 0) {
+                playerName = name;
+                scoreboardEnabled = true;
+                localStorage.setItem('batteryBlasterName', name);
+            }
+
+            document.getElementById('namePrompt').style.display = 'none';
+        };
+
+        // Skip name entry
+        window.skipNameEntry = function() {
+            playerName = null;
+            scoreboardEnabled = false;
+            document.getElementById('namePrompt').style.display = 'none';
+        };
+
+        // Check for saved name on load
+        const savedName = localStorage.getItem('batteryBlasterName');
+        if (savedName) {
+            playerName = savedName;
+            scoreboardEnabled = true;
+            document.getElementById('namePrompt').style.display = 'none';
+        }
+
+        // Allow Enter key to submit name
+        document.getElementById('playerNameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                window.submitPlayerName();
+            }
+        });
+
+        // Save or update high score in Firebase
+        async function saveHighScore(name, newScore) {
+            if (!scoreboardEnabled || !name) return;
+
+            const playerKey = sanitizeKey(name);
+            const playerRef = ref(database, 'scores/' + playerKey);
+
+            try {
+                // Get current high score for this player
+                const snapshot = await get(playerRef);
+
+                if (snapshot.exists()) {
+                    const currentData = snapshot.val();
+                    // Only update if new score is higher
+                    if (newScore > currentData.score) {
+                        await set(playerRef, {
+                            name: name,
+                            score: newScore,
+                            timestamp: Date.now()
+                        });
+                    }
+                } else {
+                    // First score for this player
+                    await set(playerRef, {
+                        name: name,
+                        score: newScore,
+                        timestamp: Date.now()
+                    });
+                }
+            } catch (error) {
+                console.error('Error saving score:', error);
+            }
+        }
+
+        // Fetch and display scoreboard
+        async function fetchAndDisplayScoreboard() {
+            const container = document.getElementById('scoreboardContainer');
+            const list = document.getElementById('scoreboardList');
+
+            if (!scoreboardEnabled) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            list.innerHTML = '<div class="scoreboard-loading">Loading rankings...</div>';
+
+            try {
+                const scoresRef = ref(database, 'scores');
+                const snapshot = await get(scoresRef);
+
+                if (snapshot.exists()) {
+                    const scores = [];
+                    snapshot.forEach((child) => {
+                        scores.push(child.val());
+                    });
+
+                    // Sort by score descending
+                    scores.sort((a, b) => b.score - a.score);
+
+                    // Take top 10
+                    const topScores = scores.slice(0, 10);
+
+                    if (topScores.length === 0) {
+                        list.innerHTML = '<div class="scoreboard-loading">No scores yet. Be the first!</div>';
+                        return;
+                    }
+
+                    list.innerHTML = topScores.map((entry, index) => {
+                        const isCurrentPlayer = playerName && entry.name.toLowerCase() === playerName.toLowerCase();
+                        return `
+                            <div class="scoreboard-entry ${isCurrentPlayer ? 'current-player' : ''}">
+                                <span class="scoreboard-rank">${index + 1}.</span>
+                                <span class="scoreboard-name">${escapeHtml(entry.name)}</span>
+                                <span class="scoreboard-score">${entry.score.toLocaleString()}</span>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    list.innerHTML = '<div class="scoreboard-loading">No scores yet. Be the first!</div>';
+                }
+            } catch (error) {
+                console.error('Error fetching scoreboard:', error);
+                list.innerHTML = '<div class="scoreboard-loading">Could not load rankings</div>';
+            }
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Set up the game over hook for scoreboard integration
+        window.onGameOver = async function(gameData) {
+            // Save score and fetch scoreboard
+            if (scoreboardEnabled && playerName) {
+                await saveHighScore(playerName, gameData.score);
+            }
+            await fetchAndDisplayScoreboard();
+        };
     </script>
 </body>
 </html>
